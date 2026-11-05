@@ -27,9 +27,9 @@ app.get('/api/health', (_req, res) => {
 
 app.post('/api/rooms', (req, res, next) => {
   try {
-    const session = store.createRoom(req.body?.playerName);
+    const session = store.createRoom(req.body?.playerName, req.body?.roomCode);
     store.broadcast(session.room);
-    res.status(201).json(session.session);
+    res.status(201).json({ ...session.session, created: session.created ?? true });
   } catch (error) {
     next(error);
   }
@@ -48,7 +48,7 @@ app.post('/api/rooms/:code/join', (req, res, next) => {
   try {
     const session = store.joinRoom(req.params.code, req.body?.playerName);
     store.broadcast(session.room);
-    res.status(201).json(session.session);
+    res.status(201).json({ ...session.session, created: session.created ?? false });
   } catch (error) {
     next(error);
   }

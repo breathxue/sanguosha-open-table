@@ -2,7 +2,6 @@ import type {
   ApiErrorBody,
   ApiSessionResponse,
   RoomSummary,
-  Session,
 } from '../shared/types';
 
 export class ApiError extends Error {
@@ -44,14 +43,14 @@ async function request<T>(url: string, init?: RequestInit): Promise<T> {
   return body as T;
 }
 
-export function createRoom(playerName: string): Promise<Session> {
+export function createRoom(playerName: string, roomCode?: string): Promise<ApiSessionResponse> {
   return request<ApiSessionResponse>('/api/rooms', {
     method: 'POST',
-    body: JSON.stringify({ playerName }),
+    body: JSON.stringify({ playerName, roomCode: roomCode || undefined }),
   });
 }
 
-export function joinRoom(roomCode: string, playerName: string): Promise<Session> {
+export function joinRoom(roomCode: string, playerName: string): Promise<ApiSessionResponse> {
   return request<ApiSessionResponse>(`/api/rooms/${encodeURIComponent(roomCode)}/join`, {
     method: 'POST',
     body: JSON.stringify({ playerName }),

@@ -5781,3 +5781,21 @@ ul {
     display: none;
   }
 }
+
+.field-hint {
+  margin-top: -2px;
+  color: var(--muted-2);
+  font-size: 9px;
+  line-height: 1.55;
+}
+
+.room-code-input--optional {
+  font-size: 17px !important;
+  letter-spacing: 0.16em !important;
+}
+
+.room-code-input--optional::placeholder {
+  letter-spacing: 0.05em !important;
+  font-family: var(--font-ui);
+  font-size: 12px;
+}

@@ -65,6 +65,7 @@ export interface RoomSession {
   room: Room;
   player: RoomPlayer;
   session: Session;
+  created?: boolean;
 }
 
 export interface ActionResult {
@@ -98,7 +99,13 @@ export function cleanPlayerName(value: unknown): string {
 }
 
 export function normalizeRoomCode(value: unknown): string {
-  return typeof value === 'string' ? value.trim().toUpperCase().slice(0, ROOM_CODE_LENGTH) : '';
+  return typeof value === 'string' ? value.trim().toUpperCase() : '';
+}
+
+function assertValidRoomCode(code: string): void {
+  if (!new RegExp(`^[A-Z0-9]{${ROOM_CODE_LENGTH}}$`).test(code)) {
+    throw new PublicError(`房间号需要是 ${ROOM_CODE_LENGTH} 位字母或数字`, 400);
+  }
 }
 
 function emptyZones(): PlayerZones {
@@ -223,9 +230,16 @@ function isHiddenDestination(to: ZoneRef): boolean {
 export class RoomStore {
   readonly rooms = new Map<string, Room>();
 
-  createRoom(rawName: unknown): RoomSession {
+  createRoom(rawName: unknown, rawCode?: unknown): RoomSession {
     const name = cleanPlayerName(rawName);
-    const code = makeRoomCode(this.rooms);
+    const customCode = typeof rawCode === 'string' ? normalizeRoomCode(rawCode) : '';
+    if (customCode) {
+      assertValidRoomCode(customCode);
+      if (this.rooms.has(customCode)) {
+        throw new PublicError('这个房间号已经有人用了，换一个试试', 409);
+      }
+    }
+    const code = customCode || makeRoomCode(this.rooms);
     const { cards, decks } = createCards();
     const player = this.newPlayer(name, 0);
     const now = Date.now();
@@ -250,13 +264,18 @@ export class RoomStore {
     };
     this.rooms.set(code, room);
     this.addLog(room, `${name} 创建了牌桌`, 'accent');
-    return { room, player, session: this.sessionFor(room, player) };
+    return { room, player, session: this.sessionFor(room, player), created: true };
   }
 
   joinRoom(rawCode: unknown, rawName: unknown): RoomSession {
     const code = normalizeRoomCode(rawCode);
+    assertValidRoomCode(code);
     const room = this.rooms.get(code);
-    if (!room) throw new PublicError('房间不存在，或已经结束', 404);
+    if (!room) {
+      // A friend can send any 5-character code. If nobody has opened that
+      // table yet, joining it creates the room and makes this player host.
+      return this.createRoom(rawName, code);
+    }
     if (room.players.length >= MAX_PLAYERS) {
       throw new PublicError(`牌桌已满（最多 ${MAX_PLAYERS} 人）`, 409);
     }
@@ -277,7 +296,7 @@ export class RoomStore {
       'muted',
     );
     this.touch(room);
-    return { room, player, session: this.sessionFor(room, player) };
+    return { room, player, session: this.sessionFor(room, player), created: false };
   }
 
   authenticate(rawCode: unknown, rawToken: unknown): RoomSession | null {

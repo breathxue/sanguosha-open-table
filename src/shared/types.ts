@@ -111,7 +111,7 @@ export interface ApiErrorBody {
   error: string;
 }
 
-export type ApiSessionResponse = Session;
+export type ApiSessionResponse = Session & { created?: boolean };
 
 export const DECK_LABELS: Record<DeckKind, string> = {
   general: '武将牌堆',

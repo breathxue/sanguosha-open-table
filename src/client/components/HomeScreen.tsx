@@ -74,7 +74,8 @@ export function HomeScreen({ onEnter, notify }: HomeScreenProps) {
   const initialCode = linkedRoomCode();
   const [mode, setMode] = useState<Mode>(initialCode ? 'join' : 'create');
   const [nickname, setNickname] = useState(loadNickname);
-  const [roomCode, setRoomCode] = useState(initialCode);
+  const [joinCode, setJoinCode] = useState(initialCode);
+  const [createCode, setCreateCode] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
@@ -86,8 +87,12 @@ export function HomeScreen({ onEnter, notify }: HomeScreenProps) {
       setError('先给自己取一个名字');
       return;
     }
-    if (mode === 'join' && roomCode.length !== 5) {
+    if (mode === 'join' && joinCode.length !== 5) {
       setError('请输入 5 位房间号');
+      return;
+    }
+    if (mode === 'create' && createCode.length > 0 && createCode.length !== 5) {
+      setError('自定义房间号需要是 5 位字母或数字');
       return;
     }
 
@@ -95,9 +100,16 @@ export function HomeScreen({ onEnter, notify }: HomeScreenProps) {
     setError('');
     saveNickname(name);
     try {
-      const session =
-        mode === 'create' ? await createRoom(name) : await joinRoom(roomCode, name);
-      onEnter(session);
+      if (mode === 'create') {
+        const session = await createRoom(name, createCode || undefined);
+        onEnter(session);
+      } else {
+        const session = await joinRoom(joinCode, name);
+        if (session.created) {
+          notify('这个房间还不存在，已直接用该房间号创建新牌桌', 'success');
+        }
+        onEnter(session);
+      }
     } catch (caught) {
       const message = caught instanceof Error ? caught.message : '操作失败，请稍后再试';
       setError(message);
@@ -170,8 +182,8 @@ export function HomeScreen({ onEnter, notify }: HomeScreenProps) {
               <h2>{mode === 'create' ? '开一桌新的' : '加入朋友的牌桌'}</h2>
               <p>
                 {mode === 'create'
-                  ? '创建后把房间号或链接发给朋友，无需满员即可开始。'
-                  : '输入朋友发来的 5 位房间号，落座同一张牌桌。'}
+                  ? '可以自定义 5 位房间号；留空则由系统生成。创建后把房间号或链接发给朋友。'
+                  : '输入 5 位房间号。如果这个房间还不存在，会直接用该号码创建牌桌。'}
               </p>
             </div>
 
@@ -226,15 +238,39 @@ export function HomeScreen({ onEnter, notify }: HomeScreenProps) {
                 />
               </label>
 
-              {mode === 'join' ? (
+              {mode === 'create' ? (
+                <label className="field">
+                  <span className="field-label">房间号（可选）</span>
+                  <input
+                    type="text"
+                    className="room-code-input room-code-input--optional"
+                    value={createCode}
+                    onChange={(event) => {
+                      setCreateCode(
+                        event.target.value
+                          .toUpperCase()
+                          .replace(/[^A-Z0-9]/g, '')
+                          .slice(0, 5),
+                      );
+                      setError('');
+                    }}
+                    placeholder="留空自动生成"
+                    maxLength={5}
+                    autoComplete="off"
+                    autoCapitalize="characters"
+                    spellCheck={false}
+                  />
+                  <span className="field-hint">自定义 5 位房间号，方便朋友直接输入；留空则随机生成。</span>
+                </label>
+              ) : (
                 <label className="field">
                   <span className="field-label">房间号</span>
                   <input
                     type="text"
                     className="room-code-input"
-                    value={roomCode}
+                    value={joinCode}
                     onChange={(event) => {
-                      setRoomCode(
+                      setJoinCode(
                         event.target.value
                           .toUpperCase()
                           .replace(/[^A-Z0-9]/g, '')
@@ -249,8 +285,9 @@ export function HomeScreen({ onEnter, notify }: HomeScreenProps) {
                     spellCheck={false}
                     autoFocus={Boolean(initialCode)}
                   />
+                  <span className="field-hint">房间不存在也没关系：会直接用这个房间号创建新牌桌。</span>
                 </label>
-              ) : null}
+              )}
 
               {error ? (
                 <p className="form-error" role="alert">
