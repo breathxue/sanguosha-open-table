@@ -12,6 +12,7 @@ import {
   zoneName,
 } from '../gameState';
 import { writeDragPayload, type DragPayload } from '../dnd';
+import { useTouchCardDrag } from '../useTouchCardDrag';
 import { ConfirmDialog } from './ConfirmDialog';
 import { DiscardPile, DeckPile } from './Piles';
 import { Icon } from './Icons';
@@ -63,10 +64,6 @@ export function GameScreen({ state, status, send, onLeave, notify }: GameScreenP
     });
   }, [currentVisible]);
 
-  if (!self) {
-    return null;
-  }
-
   const dispatchAction = (action: Extract<ClientMessage, { type: 'action' }>['action']): boolean => {
     if (status !== 'online') {
       notify('连接尚未恢复，操作暂未发送', 'error');
@@ -79,7 +76,45 @@ export function GameScreen({ state, status, send, onLeave, notify }: GameScreenP
     return dispatchAction({ type: 'move', cardIds, to });
   };
 
+  const doCardDrop = (cardIds: string[], to: ZoneRef): boolean => {
+    if (status !== 'online') {
+      notify('连接尚未恢复，操作暂未发送', 'error');
+      return false;
+    }
+    const locations = cardIds
+      .map((id) => locateCard(state, id))
+      .filter((item): item is NonNullable<typeof item> => Boolean(item));
+    if (locations.length !== cardIds.length) {
+      notify('有牌已经不在牌桌上了，请刷新后重试', 'error');
+      return false;
+    }
+    if (locations.every((item) => sameZone(item.zone, to))) {
+      notify('这些牌已经在目标区域了', 'info');
+      return false;
+    }
+    const ok = sendMove(cardIds, to);
+    if (ok) {
+      setSelectedIds(new Set());
+      dragIdsRef.current = [];
+    }
+    return ok;
+  };
+
+  const touchDrag = useTouchCardDrag({
+    enabled: status === 'online',
+    canDrag: (cardId) => currentVisible.has(cardId),
+    getIds: (cardId) => (selectedIds.has(cardId) ? [...selectedIds] : [cardId]),
+    onDrop: (_cardId, ids, to) => {
+      doCardDrop(ids, to);
+    },
+  });
+
+  if (!self) {
+    return null;
+  }
+
   const selectCard = (cardId: string) => {
+    if (Date.now() < touchDrag.suppressClickUntilRef.current) return;
     if (!currentVisible.has(cardId)) return;
     setSelectedIds((previous) => {
       const next = new Set(previous);
@@ -121,21 +156,7 @@ export function GameScreen({ state, status, send, onLeave, notify }: GameScreenP
       dragIdsRef.current.includes(payload.cardId) && dragIdsRef.current.length > 0
         ? dragIdsRef.current
         : [payload.cardId];
-    const locations = ids
-      .map((id) => locateCard(state, id))
-      .filter((item): item is NonNullable<typeof item> => Boolean(item));
-    if (
-      locations.length === ids.length &&
-      locations.every((item) => sameZone(item.zone, to))
-    ) {
-      notify('这些牌已经在目标区域了', 'info');
-      return;
-    }
-    const ok = sendMove(ids, to);
-    if (ok) {
-      setSelectedIds(new Set());
-      dragIdsRef.current = [];
-    }
+    doCardDrop(ids, to);
   };
 
   const drawFromDeck = (deck: 'general' | 'normal') => {
@@ -187,6 +208,10 @@ export function GameScreen({ state, status, send, onLeave, notify }: GameScreenP
     if (names.length <= 3) return names.join('、');
     return `${names.slice(0, 3).join('、')} 等 ${names.length} 张`;
   })();
+
+  const touchCard = touchDrag.active
+    ? (locateCard(state, touchDrag.active.cardId)?.card ?? null)
+    : null;
 
   const statusLabel =
     status === 'offline'
@@ -324,7 +349,8 @@ export function GameScreen({ state, status, send, onLeave, notify }: GameScreenP
               </span>
               <span>
                 <Icon name="hand" size={12} />
-                手牌只有你能看见
+                <span className="desktop-hint">手牌只有你能看见</span>
+                <span className="touch-hint">长按卡牌拖动 · 轻点多选</span>
               </span>
             </div>
             <PlayerBoard
@@ -444,6 +470,19 @@ export function GameScreen({ state, status, send, onLeave, notify }: GameScreenP
           onCancel={() => setConfirmLeave(false)}
           danger
         />
+      ) : null}
+
+      {touchDrag.active && touchCard ? (
+        <div
+          className="touch-drag-ghost"
+          style={{ left: touchDrag.active.x, top: touchDrag.active.y }}
+          aria-hidden="true"
+        >
+          <PlayingCard card={touchCard} size="md" />
+          {touchDrag.active.ids.length > 1 ? (
+            <span className="touch-drag-count">{touchDrag.active.ids.length}</span>
+          ) : null}
+        </div>
       ) : null}
     </div>
   );

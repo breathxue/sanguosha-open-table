@@ -25,6 +25,7 @@ export function DropZone({ zone, onDrop, children, className, disabled = false }
   return (
     <div
       className={cx('drop-zone', isOver && 'is-drop-over', className)}
+      data-drop-zone={JSON.stringify(zone)}
       onDragEnter={(event) => {
         if (accept(event)) setIsOver(true);
       }}
