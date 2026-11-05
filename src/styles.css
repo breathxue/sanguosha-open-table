@@ -5693,3 +5693,91 @@ ul {
     font-size: 10px;
   }
 }
+
+/* -------------------------------------------------------------------------- */
+/* Deck top / bottom placement                                                */
+/* -------------------------------------------------------------------------- */
+
+.deck-placement-overlay {
+  position: absolute;
+  inset: 4px;
+  z-index: 30;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 4px;
+  border: 1px solid rgba(200, 164, 106, 0.25);
+  border-radius: 10px;
+  background: rgba(10, 8, 6, 0.82);
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.4);
+  backdrop-filter: blur(3px);
+}
+
+.deck-placement {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1px;
+  border: 1px dashed rgba(200, 164, 106, 0.32);
+  border-radius: 6px;
+  background: rgba(200, 164, 106, 0.035);
+  transition:
+    border-color 140ms ease,
+    background 140ms ease,
+    box-shadow 140ms ease;
+}
+
+.deck-placement--top {
+  border-top-style: solid;
+}
+
+.deck-placement--bottom {
+  border-bottom-style: solid;
+}
+
+.deck-placement span {
+  color: var(--gold-bright);
+  font-family: var(--font-display);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  line-height: 1.2;
+}
+
+.deck-placement em {
+  color: rgba(162, 147, 125, 0.62);
+  font-size: 6.5px;
+  font-style: normal;
+  letter-spacing: 0.02em;
+  line-height: 1.2;
+}
+
+.deck-placement.is-drop-over {
+  border-color: var(--gold-bright);
+  background: rgba(200, 164, 106, 0.16);
+  box-shadow:
+    inset 0 0 0 1px rgba(231, 202, 147, 0.4),
+    0 0 18px rgba(200, 164, 106, 0.18);
+}
+
+.deck-placement.is-drop-over::after {
+  display: none;
+}
+
+@media (max-width: 620px) {
+  .deck-placement-overlay {
+    inset: 2px;
+    gap: 2px;
+    padding: 2px;
+  }
+
+  .deck-placement span {
+    font-size: 9px;
+  }
+
+  .deck-placement em {
+    display: none;
+  }
+}

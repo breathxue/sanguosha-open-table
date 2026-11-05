@@ -43,8 +43,12 @@ export function MoveDialog({ state, source, onClose, onChoose }: MoveDialogProps
   const cards = source.kind === 'cards' ? cardsForIds(state, source.cardIds) : [];
 
   const firstZone = locations[0]?.zone ?? null;
-  const currentZone =
-    firstZone && locations.every((item) => sameZone(item.zone, firstZone)) ? firstZone : null;
+  const currentZone: ZoneRef | null =
+    source.kind === 'deck'
+      ? { kind: 'deck', deck: source.deck, placement: 'top' }
+      : firstZone && locations.every((item) => sameZone(item.zone, firstZone))
+        ? firstZone
+        : null;
 
   const sourceLabel =
     source.kind === 'deck'
@@ -53,9 +57,15 @@ export function MoveDialog({ state, source, onClose, onChoose }: MoveDialogProps
         ? `${cards.length} 张牌 · 来自${zoneName(state, currentZone)}`
         : `${cards.length} 张牌`;
 
-  const deckTargets: Array<{ deck: DeckKind; icon: string }> = [
-    { deck: 'general', icon: '将' },
-    { deck: 'normal', icon: '牌' },
+  const deckTargets: Array<{
+    deck: DeckKind;
+    placement: 'top' | 'bottom';
+    icon: string;
+  }> = [
+    { deck: 'general', placement: 'top', icon: '顶' },
+    { deck: 'general', placement: 'bottom', icon: '底' },
+    { deck: 'normal', placement: 'top', icon: '顶' },
+    { deck: 'normal', placement: 'bottom', icon: '底' },
   ];
 
   const choose = (to: ZoneRef) => {
@@ -104,12 +114,12 @@ export function MoveDialog({ state, source, onClose, onChoose }: MoveDialogProps
           <em>PUBLIC</em>
         </h3>
         <div className="public-destinations">
-          {deckTargets.map(({ deck, icon }) => {
-            const to: ZoneRef = { kind: 'deck', deck };
+          {deckTargets.map(({ deck, placement, icon }) => {
+            const to: ZoneRef = { kind: 'deck', deck, placement };
             const current = currentZone ? sameZone(currentZone, to) : false;
             return (
               <button
-                key={deck}
+                key={`${deck}-${placement}`}
                 type="button"
                 className={cx('destination-tile', current && 'is-current')}
                 onClick={() => choose(to)}
@@ -118,7 +128,7 @@ export function MoveDialog({ state, source, onClose, onChoose }: MoveDialogProps
               >
                 <span className="destination-mark">{icon}</span>
                 <span className="destination-text">
-                  <strong>{DECK_LABELS[deck]}顶</strong>
+                  <strong>{DECK_LABELS[deck]}{placement === 'top' ? '顶' : '底'}</strong>
                   <small>{state.deckCounts[deck]} 张</small>
                 </span>
                 {current ? <span className="current-tag">当前</span> : <Icon name="arrow-right" size={15} />}

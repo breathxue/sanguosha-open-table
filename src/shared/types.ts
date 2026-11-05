@@ -13,7 +13,7 @@ export interface SkillInfo {
 }
 
 export type ZoneRef =
-  | { kind: 'deck'; deck: DeckKind }
+  | { kind: 'deck'; deck: DeckKind; placement?: 'top' | 'bottom' }
   | { kind: 'discard' }
   | { kind: 'player'; playerId: string; zone: PlayerZone };
 

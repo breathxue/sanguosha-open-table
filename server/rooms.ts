@@ -73,7 +73,7 @@ export interface ActionResult {
 }
 
 type CardLocation =
-  | { kind: 'deck'; deck: DeckKind }
+  | { kind: 'deck'; deck: DeckKind; placement?: 'top' | 'bottom' }
   | { kind: 'discard' }
   | { kind: 'player'; playerId: string; zone: PlayerZone };
 
@@ -143,7 +143,11 @@ function putCardsAt(room: Room, cardIds: string[], to: ZoneRef): void {
   let target: string[];
   if (to.kind === 'deck') {
     target = room.decks[to.deck];
-    for (let i = cardIds.length - 1; i >= 0; i -= 1) target.unshift(cardIds[i]);
+    if ((to.placement ?? 'top') === 'bottom') {
+      target.push(...cardIds);
+    } else {
+      for (let i = cardIds.length - 1; i >= 0; i -= 1) target.unshift(cardIds[i]);
+    }
     return;
   }
   if (to.kind === 'discard') {
@@ -159,7 +163,9 @@ function putCardsAt(room: Room, cardIds: string[], to: ZoneRef): void {
 
 function sameZone(a: CardLocation, b: ZoneRef): boolean {
   if (a.kind !== b.kind) return false;
-  if (a.kind === 'deck' && b.kind === 'deck') return a.deck === b.deck;
+  if (a.kind === 'deck' && b.kind === 'deck') {
+    return a.deck === b.deck && (a.placement ?? 'top') === (b.placement ?? 'top');
+  }
   if (a.kind === 'discard' && b.kind === 'discard') return true;
   if (a.kind === 'player' && b.kind === 'player') {
     return a.playerId === b.playerId && a.zone === b.zone;
@@ -170,7 +176,12 @@ function sameZone(a: CardLocation, b: ZoneRef): boolean {
 function isValidZoneRef(room: Room, value: unknown): value is ZoneRef {
   if (!value || typeof value !== 'object') return false;
   const zone = value as Record<string, unknown>;
-  if (zone.kind === 'deck') return zone.deck === 'general' || zone.deck === 'normal';
+  if (zone.kind === 'deck') {
+    return (
+      (zone.deck === 'general' || zone.deck === 'normal') &&
+      (zone.placement === undefined || zone.placement === 'top' || zone.placement === 'bottom')
+    );
+  }
   if (zone.kind === 'discard') return true;
   if (zone.kind === 'player') {
     return (
@@ -194,7 +205,7 @@ function describeLocation(room: Room, viewerId: string, location: CardLocation):
 }
 
 function describeDestination(room: Room, viewerId: string, to: ZoneRef): string {
-  if (to.kind === 'deck') return `${DECK_LABELS[to.deck]}顶`;
+  if (to.kind === 'deck') return `${DECK_LABELS[to.deck]}${(to.placement ?? 'top') === 'bottom' ? '底' : '顶'}`;
   if (to.kind === 'discard') return '弃牌区';
   const player = room.players.find((item) => item.id === to.playerId);
   if (!player) return ZONE_LABELS[to.zone];
@@ -342,12 +353,19 @@ export class RoomStore {
       putCardsAt(room, [cardId], action.to);
       const card = room.cards.get(cardId);
       const toHand = action.to.kind === 'player' && action.to.zone === 'hand';
+      const toDeck = action.to.kind === 'deck';
       const toOwnHand = toHand && action.to.kind === 'player' && action.to.playerId === player.id;
       const dest = describeDestination(room, player.id, action.to);
       if (toOwnHand) {
         this.addLog(room, `${player.name} 从${DECK_LABELS[action.deck]}摸了 1 张牌`, 'normal');
       } else if (toHand) {
         this.addLog(room, `${player.name} 将${DECK_LABELS[action.deck]}顶的 1 张牌放入${dest}`, 'normal');
+      } else if (toDeck) {
+        this.addLog(
+          room,
+          `${player.name} 将${DECK_LABELS[action.deck]}顶的 1 张牌移到${dest}`,
+          'normal',
+        );
       } else if (card) {
         this.addLog(
           room,

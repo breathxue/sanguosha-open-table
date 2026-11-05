@@ -12,6 +12,7 @@ interface DeckPileProps {
   deck: DeckKind;
   count: number;
   disabled: boolean;
+  dragActive: boolean;
   onDraw: () => void;
   onMoveTop: () => void;
   onShuffle: () => void;
@@ -22,6 +23,7 @@ export function DeckPile({
   deck,
   count,
   disabled,
+  dragActive,
   onDraw,
   onMoveTop,
   onShuffle,
@@ -112,6 +114,27 @@ export function DeckPile({
       >
         移动顶牌到…
       </button>
+
+      {dragActive ? (
+        <div className="deck-placement-overlay">
+          <DropZone
+            zone={{ kind: 'deck', deck, placement: 'top' }}
+            onDrop={onDrop}
+            className="deck-placement deck-placement--top"
+          >
+            <span>牌顶</span>
+            <em>放到牌堆顶</em>
+          </DropZone>
+          <DropZone
+            zone={{ kind: 'deck', deck, placement: 'bottom' }}
+            onDrop={onDrop}
+            className="deck-placement deck-placement--bottom"
+          >
+            <span>牌底</span>
+            <em>放到牌堆底</em>
+          </DropZone>
+        </div>
+      ) : null}
     </DropZone>
   );
 }

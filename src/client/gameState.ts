@@ -7,7 +7,7 @@ export interface CardLocation {
 }
 
 export function zoneKey(zone: ZoneRef): string {
-  if (zone.kind === 'deck') return `deck:${zone.deck}`;
+  if (zone.kind === 'deck') return `deck:${zone.deck}:${zone.placement ?? 'top'}`;
   if (zone.kind === 'discard') return 'discard';
   return `player:${zone.playerId}:${zone.zone}`;
 }
@@ -69,7 +69,7 @@ export function zoneName(
   zone: ZoneRef,
   perspectiveId = state.selfId,
 ): string {
-  if (zone.kind === 'deck') return `${DECK_LABELS[zone.deck]}顶`;
+  if (zone.kind === 'deck') return `${DECK_LABELS[zone.deck]}${(zone.placement ?? 'top') === 'bottom' ? '底' : '顶'}`;
   if (zone.kind === 'discard') return '弃牌区';
   const player = state.players.find((item) => item.id === zone.playerId);
   const owner = player?.id === perspectiveId ? '我的' : `${player?.name ?? '未知玩家'}的`;

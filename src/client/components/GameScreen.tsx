@@ -41,6 +41,7 @@ export function GameScreen({ state, status, send, onLeave, notify }: GameScreenP
   const [confirmLeave, setConfirmLeave] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [generalInfo, setGeneralInfo] = useState<CardView | null>(null);
+  const [htmlDragActive, setHtmlDragActive] = useState(false);
   const dragIdsRef = useRef<string[]>([]);
   const tableScrollRef = useRef<HTMLDivElement>(null);
 
@@ -58,6 +59,27 @@ export function GameScreen({ state, status, send, onLeave, notify }: GameScreenP
   useEffect(() => {
     if (tableScrollRef.current) tableScrollRef.current.scrollTop = 0;
   }, [state.code]);
+
+  useEffect(() => {
+    const onDragStart = (event: globalThis.DragEvent) => {
+      const target = event.target;
+      if (
+        target instanceof Element &&
+        (target.closest('[data-card-id]') || target.closest('.deck-visual'))
+      ) {
+        setHtmlDragActive(true);
+      }
+    };
+    const onDragEnd = () => setHtmlDragActive(false);
+    document.addEventListener('dragstart', onDragStart);
+    document.addEventListener('dragend', onDragEnd);
+    document.addEventListener('drop', onDragEnd);
+    return () => {
+      document.removeEventListener('dragstart', onDragStart);
+      document.removeEventListener('dragend', onDragEnd);
+      document.removeEventListener('drop', onDragEnd);
+    };
+  }, []);
 
   useEffect(() => {
     setSelectedIds((previous) => {
@@ -145,8 +167,12 @@ export function GameScreen({ state, status, send, onLeave, notify }: GameScreenP
     }
 
     if (payload.kind === 'deck') {
-      if (to.kind === 'deck' && to.deck === payload.deck) {
-        notify('牌堆顶已经在这里了', 'info');
+      if (
+        to.kind === 'deck' &&
+        to.deck === payload.deck &&
+        (to.placement ?? 'top') === 'top'
+      ) {
+        notify('这已经是牌堆顶了', 'info');
         return;
       }
       const ok = dispatchAction({ type: 'moveTop', deck: payload.deck, to });
@@ -309,6 +335,7 @@ export function GameScreen({ state, status, send, onLeave, notify }: GameScreenP
                 deck="general"
                 count={state.deckCounts.general}
                 disabled={status !== 'online'}
+                dragActive={htmlDragActive || Boolean(touchDrag.active)}
                 onDraw={() => drawFromDeck('general')}
                 onMoveTop={() => setMoveSource({ kind: 'deck', deck: 'general' })}
                 onShuffle={() => shuffleDeck('general')}
@@ -326,6 +353,7 @@ export function GameScreen({ state, status, send, onLeave, notify }: GameScreenP
                 deck="normal"
                 count={state.deckCounts.normal}
                 disabled={status !== 'online'}
+                dragActive={htmlDragActive || Boolean(touchDrag.active)}
                 onDraw={() => drawFromDeck('normal')}
                 onMoveTop={() => setMoveSource({ kind: 'deck', deck: 'normal' })}
                 onShuffle={() => shuffleDeck('normal')}
