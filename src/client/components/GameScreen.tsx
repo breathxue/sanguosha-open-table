@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type DragEvent } from 'react';
-import type { ClientMessage, TableState, ZoneRef } from '../../shared/types';
+import type { CardView, ClientMessage, TableState, ZoneRef } from '../../shared/types';
 import { cx } from '../utils';
 import { copyText, inviteUrl } from '../utils';
 import type { ConnectionStatus } from '../useRoomSocket';
@@ -14,6 +14,7 @@ import {
 import { writeDragPayload, type DragPayload } from '../dnd';
 import { useTouchCardDrag } from '../useTouchCardDrag';
 import { ConfirmDialog } from './ConfirmDialog';
+import { GeneralDetailModal } from './GeneralDetailModal';
 import { DiscardPile, DeckPile } from './Piles';
 import { Icon } from './Icons';
 import { Modal } from './Modal';
@@ -39,6 +40,7 @@ export function GameScreen({ state, status, send, onLeave, notify }: GameScreenP
   const [discardOpen, setDiscardOpen] = useState(false);
   const [confirmLeave, setConfirmLeave] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [generalInfo, setGeneralInfo] = useState<CardView | null>(null);
   const dragIdsRef = useRef<string[]>([]);
   const tableScrollRef = useRef<HTMLDivElement>(null);
 
@@ -159,6 +161,10 @@ export function GameScreen({ state, status, send, onLeave, notify }: GameScreenP
     doCardDrop(ids, to);
   };
 
+  const adjustHp = (playerId: string, delta: number) => {
+    dispatchAction({ type: 'adjustHp', playerId, delta });
+  };
+
   const drawFromDeck = (deck: 'general' | 'normal') => {
     dispatchAction({
       type: 'moveTop',
@@ -275,6 +281,8 @@ export function GameScreen({ state, status, send, onLeave, notify }: GameScreenP
                     selectedIds={selectedIds}
                     onCardClick={selectCard}
                     onCardDragStart={handleCardDragStart}
+                    onCardInfo={setGeneralInfo}
+                    onAdjustHp={adjustHp}
                     onDrop={handleDrop}
                   />
                 ))}
@@ -359,6 +367,8 @@ export function GameScreen({ state, status, send, onLeave, notify }: GameScreenP
               selectedIds={selectedIds}
               onCardClick={selectCard}
               onCardDragStart={handleCardDragStart}
+              onCardInfo={setGeneralInfo}
+              onAdjustHp={adjustHp}
               onDrop={handleDrop}
             />
           </section>
@@ -471,6 +481,8 @@ export function GameScreen({ state, status, send, onLeave, notify }: GameScreenP
           danger
         />
       ) : null}
+
+      {generalInfo ? <GeneralDetailModal card={generalInfo} onClose={() => setGeneralInfo(null)} /> : null}
 
       {touchDrag.active && touchCard ? (
         <div

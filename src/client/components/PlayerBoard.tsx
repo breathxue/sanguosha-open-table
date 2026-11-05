@@ -1,5 +1,5 @@
 import type { DragEvent } from 'react';
-import type { PlayerView, PlayerZone, ZoneRef } from '../../shared/types';
+import type { CardView, PlayerView, PlayerZone, ZoneRef } from '../../shared/types';
 import { cx, initialOf } from '../utils';
 import type { DragPayload } from '../dnd';
 import { CardBack, PlayingCard } from './PlayingCard';
@@ -12,6 +12,8 @@ interface PlayerBoardProps {
   selectedIds: Set<string>;
   onCardClick: (cardId: string) => void;
   onCardDragStart: (cardId: string, event: DragEvent<HTMLDivElement>) => void;
+  onCardInfo?: (card: CardView) => void;
+  onAdjustHp?: (playerId: string, delta: number) => void;
   onDrop: (payload: DragPayload, to: ZoneRef) => void;
 }
 
@@ -27,10 +29,13 @@ export function PlayerBoard({
   selectedIds,
   onCardClick,
   onCardDragStart,
+  onCardInfo,
+  onAdjustHp,
   onDrop,
 }: PlayerBoardProps) {
   const cardSize = 'xs';
   const hand = player.hand ?? [];
+  const maxHp = player.general.find((card) => card.category === 'general')?.hp;
 
   const renderPublicZone = (zone: Exclude<PlayerZone, 'hand'>, label: string, icon: 'cards' | 'shield' | 'eye') => {
     const cards = player[zone];
@@ -61,6 +66,11 @@ export function PlayerBoard({
                 selected={selectedIds.has(card.id)}
                 onClick={() => onCardClick(card.id)}
                 onDragStart={(event) => onCardDragStart(card.id, event)}
+                onInfo={
+                  card.category === 'general' && onCardInfo
+                    ? () => onCardInfo(card)
+                    : undefined
+                }
                 className="zone-card"
               />
             ))
@@ -96,10 +106,39 @@ export function PlayerBoard({
             <span>{player.connected ? '在线' : '离线'}</span>
           </span>
         </div>
-        <span className="player-hand-count" title="手牌数量">
-          <Icon name="hand" size={13} />
-          {player.handCount}
-        </span>
+        <div className="player-tools">
+          {onAdjustHp ? (
+            <div className="hp-control" title="体力（手动调整，牌桌不判定）">
+              <button
+                type="button"
+                className="hp-button"
+                onClick={() => onAdjustHp(player.id, -1)}
+                disabled={player.hp <= 0}
+                aria-label={`减少${player.name}的体力`}
+              >
+                −
+              </button>
+              <span className="hp-value">
+                <Icon name="heart" size={10} />
+                {player.hp}
+                {maxHp ? <em>/{maxHp}</em> : null}
+              </span>
+              <button
+                type="button"
+                className="hp-button"
+                onClick={() => onAdjustHp(player.id, 1)}
+                disabled={player.hp >= 99}
+                aria-label={`增加${player.name}的体力`}
+              >
+                +
+              </button>
+            </div>
+          ) : null}
+          <span className="player-hand-count" title="手牌数量">
+            <Icon name="hand" size={13} />
+            {player.handCount}
+          </span>
+        </div>
       </header>
 
       <div className="player-zones">
@@ -134,6 +173,11 @@ export function PlayerBoard({
                   selected={selectedIds.has(card.id)}
                   onClick={() => onCardClick(card.id)}
                   onDragStart={(event) => onCardDragStart(card.id, event)}
+                  onInfo={
+                    card.category === 'general' && onCardInfo
+                      ? () => onCardInfo(card)
+                      : undefined
+                  }
                   className="hand-card"
                 />
               ))}

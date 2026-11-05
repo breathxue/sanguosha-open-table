@@ -1,6 +1,7 @@
 import type { DragEvent, KeyboardEvent } from 'react';
 import type { CardView, DeckKind, Suit } from '../../shared/types';
 import { cx } from '../utils';
+import { kingdomClass } from '../kingdoms';
 
 export type CardSize = 'xs' | 'sm' | 'md' | 'lg';
 
@@ -38,6 +39,7 @@ interface PlayingCardProps {
   selected?: boolean;
   onClick?: () => void;
   onDragStart?: (event: DragEvent<HTMLDivElement>) => void;
+  onInfo?: () => void;
   className?: string;
 }
 
@@ -47,6 +49,7 @@ export function PlayingCard({
   selected = false,
   onClick,
   onDragStart,
+  onInfo,
   className,
 }: PlayingCardProps) {
   const isGeneral = card.category === 'general';
@@ -69,6 +72,7 @@ export function PlayingCard({
       className={cx(
         'playing-card',
         isGeneral ? 'playing-card--general' : 'playing-card--normal',
+        isGeneral && `playing-card--${kingdomClass(card.kingdom)}`,
         `playing-card--${size}`,
         selected && 'is-selected',
         interactive && 'is-interactive',
@@ -89,10 +93,28 @@ export function PlayingCard({
         <>
           <div className="card-sheen" />
           <div className="general-topline">
-            <span className="kingdom-seal">{card.kingdom ?? '将'}</span>
-            <span className="general-category">武将牌</span>
+            <span className="kingdom-seal">{card.kingdom}</span>
+            {onInfo ? (
+              <button
+                type="button"
+                className="card-info-button"
+                onClick={(event) => {
+                  event.stopPropagation();
+                  onInfo();
+                }}
+                onKeyDown={(event) => event.stopPropagation()}
+                onMouseDown={(event) => event.stopPropagation()}
+                aria-label={`查看${card.name}的技能描述`}
+                title="查看技能描述"
+              >
+                技
+              </button>
+            ) : null}
           </div>
           <div className="general-name">{card.name}</div>
+          {card.skills && card.skills.length > 0 ? (
+            <div className="general-skills">{card.skills.map((skill) => skill.name).join(' · ')}</div>
+          ) : null}
           <div className="general-bottom">
             <span className="general-hp" aria-hidden="true">
               {Array.from({ length: Math.min(card.hp ?? 0, 5) }, (_, index) => (
@@ -101,7 +123,6 @@ export function PlayingCard({
             </span>
             <span className="general-hp-label">{card.hp ?? 4} 体力</span>
           </div>
-          <span className="card-seal">{CATEGORY_SEAL.general}</span>
         </>
       ) : (
         <>
@@ -152,7 +173,7 @@ export function CardBack({ deck, size = 'md', className, label }: CardBackProps)
       aria-label={label ?? (deck === 'general' ? '武将牌背面' : '普通牌背面')}
     >
       <span className="card-back-frame" />
-      <span className="card-back-emblem">{deck === 'general' ? '将' : '杀'}</span>
+      <span className="card-back-emblem">{deck === 'general' ? '◆' : '杀'}</span>
       <span className="card-back-dots" aria-hidden="true" />
     </div>
   );

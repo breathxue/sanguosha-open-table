@@ -21,7 +21,8 @@ export type IconName =
   | 'hand'
   | 'shield'
   | 'scale'
-  | 'link';
+  | 'link'
+  | 'heart';
 
 const PATHS: Record<IconName, ReactNode> = {
   copy: (
@@ -146,6 +147,7 @@ const PATHS: Record<IconName, ReactNode> = {
       <path d="M14 11a5 5 0 0 0-7 0l-2 2a5 5 0 0 0 7 7l1-1" />
     </>
   ),
+  heart: <path d="M12 20.2 4.6 12.9a4.8 4.8 0 0 1 0-6.8 4.8 4.8 0 0 1 6.8 0l.6.6.6-.6a4.8 4.8 0 0 1 6.8 0 4.8 4.8 0 0 1 0 6.8L12 20.2Z" />,
 };
 
 interface IconProps extends Omit<SVGProps<SVGSVGElement>, 'name'> {

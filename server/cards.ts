@@ -3,9 +3,9 @@ import type {
   CardCategory,
   CardView,
   DeckKind,
-  Kingdom,
   Suit,
 } from '../src/shared/types.js';
+import { GENERAL_BLUEPRINTS } from './generals.js';
 
 export type Card = CardView;
 
@@ -13,12 +13,6 @@ interface NormalBlueprint {
   name: string;
   category: Exclude<CardCategory, 'general'>;
   count: number;
-}
-
-interface GeneralBlueprint {
-  name: string;
-  kingdom: Kingdom;
-  hp: number;
 }
 
 const SUITS: Suit[] = ['spade', 'heart', 'club', 'diamond'];
@@ -65,64 +59,6 @@ const NORMAL_BLUEPRINTS: NormalBlueprint[] = [
   { name: '紫骍', category: 'equipment', count: 1 },
 ];
 
-const GENERAL_BLUEPRINTS: GeneralBlueprint[] = [
-  { name: '曹操', kingdom: '魏', hp: 4 },
-  { name: '司马懿', kingdom: '魏', hp: 3 },
-  { name: '夏侯惇', kingdom: '魏', hp: 4 },
-  { name: '张辽', kingdom: '魏', hp: 4 },
-  { name: '许褚', kingdom: '魏', hp: 4 },
-  { name: '郭嘉', kingdom: '魏', hp: 3 },
-  { name: '甄姬', kingdom: '魏', hp: 3 },
-  { name: '夏侯渊', kingdom: '魏', hp: 4 },
-  { name: '张郃', kingdom: '魏', hp: 4 },
-  { name: '徐晃', kingdom: '魏', hp: 4 },
-  { name: '曹仁', kingdom: '魏', hp: 4 },
-  { name: '典韦', kingdom: '魏', hp: 4 },
-  { name: '曹丕', kingdom: '魏', hp: 3 },
-  { name: '张春华', kingdom: '魏', hp: 3 },
-  { name: '荀彧', kingdom: '魏', hp: 3 },
-  { name: '刘备', kingdom: '蜀', hp: 4 },
-  { name: '关羽', kingdom: '蜀', hp: 4 },
-  { name: '张飞', kingdom: '蜀', hp: 4 },
-  { name: '赵云', kingdom: '蜀', hp: 4 },
-  { name: '马超', kingdom: '蜀', hp: 4 },
-  { name: '诸葛亮', kingdom: '蜀', hp: 3 },
-  { name: '黄月英', kingdom: '蜀', hp: 3 },
-  { name: '黄忠', kingdom: '蜀', hp: 4 },
-  { name: '魏延', kingdom: '蜀', hp: 4 },
-  { name: '庞统', kingdom: '蜀', hp: 3 },
-  { name: '姜维', kingdom: '蜀', hp: 4 },
-  { name: '法正', kingdom: '蜀', hp: 3 },
-  { name: '徐庶', kingdom: '蜀', hp: 3 },
-  { name: '孙权', kingdom: '吴', hp: 4 },
-  { name: '甘宁', kingdom: '吴', hp: 4 },
-  { name: '吕蒙', kingdom: '吴', hp: 4 },
-  { name: '黄盖', kingdom: '吴', hp: 4 },
-  { name: '周瑜', kingdom: '吴', hp: 3 },
-  { name: '大乔', kingdom: '吴', hp: 3 },
-  { name: '陆逊', kingdom: '吴', hp: 3 },
-  { name: '孙尚香', kingdom: '吴', hp: 3 },
-  { name: '小乔', kingdom: '吴', hp: 3 },
-  { name: '周泰', kingdom: '吴', hp: 4 },
-  { name: '太史慈', kingdom: '吴', hp: 4 },
-  { name: '孙策', kingdom: '吴', hp: 4 },
-  { name: '鲁肃', kingdom: '吴', hp: 3 },
-  { name: '吕布', kingdom: '群', hp: 4 },
-  { name: '貂蝉', kingdom: '群', hp: 3 },
-  { name: '华佗', kingdom: '群', hp: 3 },
-  { name: '华雄', kingdom: '群', hp: 4 },
-  { name: '袁绍', kingdom: '群', hp: 4 },
-  { name: '颜良文丑', kingdom: '群', hp: 4 },
-  { name: '张角', kingdom: '群', hp: 3 },
-  { name: '董卓', kingdom: '群', hp: 4 },
-  { name: '贾诩', kingdom: '群', hp: 3 },
-  { name: '左慈', kingdom: '群', hp: 3 },
-  { name: '于吉', kingdom: '群', hp: 3 },
-  { name: '公孙瓒', kingdom: '群', hp: 4 },
-  { name: '司马师', kingdom: '晋', hp: 3 },
-  { name: '司马昭', kingdom: '晋', hp: 3 },
-  { name: '王元姬', kingdom: '晋', hp: 3 },
-];
 
 export function createCards(): {
   cards: Map<string, Card>;
@@ -159,6 +95,7 @@ export function createCards(): {
       category: 'general',
       kingdom: blueprint.kingdom,
       hp: blueprint.hp,
+      skills: blueprint.skills,
     };
     cards.set(id, card);
     generalIds.push(id);

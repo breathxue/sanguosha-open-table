@@ -29,6 +29,7 @@ export interface RoomPlayer {
   id: string;
   name: string;
   seat: number;
+  hp: number;
   token: string;
   joinedAt: number;
 }
@@ -296,6 +297,29 @@ export class RoomStore {
       return { ok: false, error: '无法识别的操作' };
     }
 
+    if (action.type === 'adjustHp') {
+      if (typeof action.playerId !== 'string') {
+        return { ok: false, error: '无法识别要调整体力的玩家' };
+      }
+      const target = room.players.find((item) => item.id === action.playerId);
+      if (!target) return { ok: false, error: '目标玩家已经不在牌桌上了' };
+      if (
+        typeof action.delta !== 'number' ||
+        !Number.isFinite(action.delta) ||
+        !Number.isInteger(action.delta) ||
+        Math.abs(action.delta) > 10
+      ) {
+        return { ok: false, error: '体力调整值不正确' };
+      }
+      const next = Math.max(0, Math.min(99, target.hp + action.delta));
+      if (next === target.hp) return { ok: true };
+      target.hp = next;
+      const owner = target.id === player.id ? '自己' : target.name;
+      this.addLog(room, `${player.name} 将${owner}的体力调整为 ${next}`, 'normal');
+      this.touch(room);
+      return { ok: true };
+    }
+
     if (action.type === 'shuffle') {
       if (action.deck !== 'general' && action.deck !== 'normal') {
         return { ok: false, error: '无法识别的牌堆' };
@@ -529,6 +553,7 @@ export class RoomStore {
         connected: (room.sockets.get(player.id)?.size ?? 0) > 0,
         isHost: player.id === room.hostId,
         handCount: zones.hand.length,
+        hp: player.hp,
         hand: isSelf ? zones.hand.map((id) => this.cardView(room, id)) : null,
         equipment: zones.equipment.map((id) => this.cardView(room, id)),
         judgment: zones.judgment.map((id) => this.cardView(room, id)),
@@ -580,6 +605,7 @@ export class RoomStore {
       id: `p-${randomBytes(4).toString('hex')}`,
       name,
       seat,
+      hp: 4,
       token: randomBytes(24).toString('base64url'),
       joinedAt: Date.now(),
     };

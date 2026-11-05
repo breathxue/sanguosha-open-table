@@ -4,6 +4,13 @@ export type PlayerZone = 'hand' | 'equipment' | 'judgment' | 'general';
 export type Suit = 'spade' | 'heart' | 'club' | 'diamond';
 export type CardCategory = 'basic' | 'trick' | 'equipment' | 'general';
 export type Kingdom = '魏' | '蜀' | '吴' | '群' | '晋';
+export type SkillTag = 'lord' | 'awakening' | 'limited' | 'locked';
+
+export interface SkillInfo {
+  name: string;
+  description: string;
+  tags?: SkillTag[];
+}
 
 export type ZoneRef =
   | { kind: 'deck'; deck: DeckKind }
@@ -19,6 +26,7 @@ export interface CardView {
   rank?: string;
   kingdom?: Kingdom;
   hp?: number;
+  skills?: SkillInfo[];
 }
 
 export interface PlayerView {
@@ -28,6 +36,7 @@ export interface PlayerView {
   connected: boolean;
   isHost: boolean;
   handCount: number;
+  hp: number;
   /** Only populated for the requesting player. */
   hand: CardView[] | null;
   equipment: CardView[];
@@ -82,7 +91,8 @@ export interface RoomSummary {
 export type TableAction =
   | { type: 'shuffle'; deck: DeckKind }
   | { type: 'move'; cardIds: string[]; to: ZoneRef }
-  | { type: 'moveTop'; deck: DeckKind; to: ZoneRef };
+  | { type: 'moveTop'; deck: DeckKind; to: ZoneRef }
+  | { type: 'adjustHp'; playerId: string; delta: number };
 
 export type ClientMessage =
   | { type: 'action'; action: TableAction }
