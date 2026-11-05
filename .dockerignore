@@ -1,0 +1,13 @@
+node_modules
+dist
+.git
+.gitignore
+.npm-cache
+.screenshots
+.pinggy-*.png
+.serveo-*.png
+*.log
+.github-token
+.deploy-server
+.deploy
+docs

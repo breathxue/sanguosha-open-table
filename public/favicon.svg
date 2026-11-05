@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <defs>
+    <linearGradient id="g" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#c84a3b"/>
+      <stop offset="1" stop-color="#8f251f"/>
+    </linearGradient>
+  </defs>
+  <rect width="64" height="64" rx="14" fill="#17120e"/>
+  <rect x="6" y="6" width="52" height="52" rx="10" fill="none" stroke="#c9a668" stroke-width="2"/>
+  <rect x="12" y="12" width="40" height="40" rx="6" fill="url(#g)"/>
+  <text x="32" y="43" text-anchor="middle" font-family="Songti SC, STSong, serif" font-size="30" font-weight="700" fill="#f1dfbb">杀</text>
+</svg>

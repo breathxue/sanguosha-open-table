@@ -1,0 +1,10 @@
+services:
+  sanguosha:
+    build: .
+    container_name: sanguosha-free-table
+    restart: unless-stopped
+    ports:
+      - "${PORT:-3000}:3000"
+    environment:
+      PORT: 3000
+      HOST: 0.0.0.0
