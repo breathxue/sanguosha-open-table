@@ -5984,3 +5984,34 @@ ul {
 .seat-info span .team-badge {
   margin-left: 6px;
 }
+
+/* ---- 按武将一键设体力 ---- */
+.hp-preset-button {
+  display: inline-flex;
+  align-items: center;
+  height: 100%;
+  padding: 0 6px;
+  border: 0;
+  border-left: 1px solid rgba(214, 106, 93, 0.22);
+  color: #eab0a4;
+  background: rgba(214, 106, 93, 0.1);
+  font-size: 9px;
+  font-weight: 650;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+  cursor: pointer;
+  transition:
+    color 150ms ease,
+    background 150ms ease;
+}
+
+.hp-preset-button:hover:not(:disabled) {
+  color: var(--ivory);
+  background: rgba(214, 106, 93, 0.24);
+}
+
+.hp-preset-button:disabled {
+  color: var(--muted-2);
+  background: transparent;
+  cursor: default;
+}

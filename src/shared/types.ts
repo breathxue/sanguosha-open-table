@@ -98,6 +98,7 @@ export type TableAction =
   | { type: 'move'; cardIds: string[]; to: ZoneRef }
   | { type: 'moveTop'; deck: DeckKind; to: ZoneRef }
   | { type: 'adjustHp'; playerId: string; delta: number }
+  | { type: 'setHp'; playerId: string; hp: number }
   | { type: 'setTeam'; playerId: string; team: Team | null };
 
 export type ClientMessage =

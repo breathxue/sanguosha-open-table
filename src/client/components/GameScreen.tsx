@@ -191,6 +191,10 @@ export function GameScreen({ state, status, send, onLeave, notify }: GameScreenP
     dispatchAction({ type: 'adjustHp', playerId, delta });
   };
 
+  const setHp = (playerId: string, hp: number) => {
+    dispatchAction({ type: 'setHp', playerId, hp });
+  };
+
   const setTeam = (playerId: string, team: Team | null) => {
     dispatchAction({ type: 'setTeam', playerId, team });
   };
@@ -313,6 +317,7 @@ export function GameScreen({ state, status, send, onLeave, notify }: GameScreenP
                     onCardDragStart={handleCardDragStart}
                     onCardInfo={setGeneralInfo}
                     onAdjustHp={adjustHp}
+                    onSetHp={setHp}
                     onSetTeam={setTeam}
                     onDrop={handleDrop}
                   />
@@ -402,6 +407,7 @@ export function GameScreen({ state, status, send, onLeave, notify }: GameScreenP
               onCardDragStart={handleCardDragStart}
               onCardInfo={setGeneralInfo}
               onAdjustHp={adjustHp}
+              onSetHp={setHp}
               onSetTeam={setTeam}
               onDrop={handleDrop}
             />

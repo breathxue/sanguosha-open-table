@@ -15,6 +15,7 @@ interface PlayerBoardProps {
   onCardDragStart: (cardId: string, event: DragEvent<HTMLDivElement>) => void;
   onCardInfo?: (card: CardView) => void;
   onAdjustHp?: (playerId: string, delta: number) => void;
+  onSetHp?: (playerId: string, hp: number) => void;
   onSetTeam?: (playerId: string, team: Team | null) => void;
   onDrop: (payload: DragPayload, to: ZoneRef) => void;
 }
@@ -35,13 +36,18 @@ export function PlayerBoard({
   onCardDragStart,
   onCardInfo,
   onAdjustHp,
+  onSetHp,
   onSetTeam,
   onDrop,
 }: PlayerBoardProps) {
   const cardSize = 'xs';
   const team = player.team;
   const hand = player.hand ?? [];
-  const maxHp = player.general.find((card) => card.category === 'general')?.hp;
+  // 武将区可能放多张武将：按体力最低的那张作为基础体力。
+  const generalHps = player.general
+    .filter((card) => card.category === 'general' && typeof card.hp === 'number')
+    .map((card) => card.hp as number);
+  const maxHp = generalHps.length > 0 ? Math.min(...generalHps) : undefined;
 
   const renderPublicZone = (zone: Exclude<PlayerZone, 'hand'>, label: string, icon: 'cards' | 'shield' | 'eye') => {
     const cards = player[zone];
@@ -151,6 +157,18 @@ export function PlayerBoard({
               >
                 +
               </button>
+              {onSetHp && maxHp !== undefined ? (
+                <button
+                  type="button"
+                  className="hp-preset-button"
+                  onClick={() => onSetHp(player.id, maxHp)}
+                  disabled={player.hp === maxHp}
+                  title={`按武将基础体力一键设为 ${maxHp}（多武将取最低）`}
+                  aria-label={`将${player.name}的体力设为 ${maxHp}`}
+                >
+                  设{maxHp}
+                </button>
+              ) : null}
             </div>
           ) : null}
           <span className="player-hand-count" title="手牌数量">

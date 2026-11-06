@@ -377,6 +377,23 @@ export class RoomStore {
       return { ok: true };
     }
 
+    if (action.type === 'setHp') {
+      if (typeof action.playerId !== 'string') {
+        return { ok: false, error: '无法识别要设置体力的玩家' };
+      }
+      const target = room.players.find((item) => item.id === action.playerId);
+      if (!target) return { ok: false, error: '目标玩家已经不在牌桌上了' };
+      if (typeof action.hp !== 'number' || !Number.isInteger(action.hp) || action.hp < 0 || action.hp > 99) {
+        return { ok: false, error: '体力值不正确' };
+      }
+      if (action.hp === target.hp) return { ok: true };
+      target.hp = action.hp;
+      const owner = target.id === player.id ? '自己' : target.name;
+      this.addLog(room, `${player.name} 将${owner}的体力设为 ${action.hp}`, 'normal');
+      this.touch(room);
+      return { ok: true };
+    }
+
     if (action.type === 'shuffle') {
       if (action.deck !== 'general' && action.deck !== 'normal') {
         return { ok: false, error: '无法识别的牌堆' };
