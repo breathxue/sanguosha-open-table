@@ -4,6 +4,7 @@ import {
   DECK_LABELS,
   MAX_PLAYERS,
   ROOM_CODE_LENGTH,
+  TEAM_LABELS,
   ZONE_LABELS,
   type CardView,
   type ClientMessage,
@@ -16,6 +17,7 @@ import {
   type Session,
   type TableAction,
   type TableState,
+  type Team,
   type ZoneRef,
 } from '../src/shared/types.js';
 import { createCards, shuffleInPlace, toCardView, type Card } from './cards.js';
@@ -30,6 +32,7 @@ export interface RoomPlayer {
   name: string;
   seat: number;
   hp: number;
+  team: Team | null;
   token: string;
   joinedAt: number;
 }
@@ -322,10 +325,34 @@ export class RoomStore {
   performAction(room: Room, playerId: string, action: TableAction): ActionResult {
     const player = room.players.find((item) => item.id === playerId);
     if (!player) return { ok: false, error: '你已不在牌桌中' };
-    if (room.phase !== 'playing') return { ok: false, error: '牌局还没有开始' };
     if (!action || typeof action !== 'object' || typeof action.type !== 'string') {
       return { ok: false, error: '无法识别的操作' };
     }
+
+    // 队伍标记在大厅里也可以设置，所以放在「牌局是否开始」的检查之前。
+    if (action.type === 'setTeam') {
+      if (typeof action.playerId !== 'string') {
+        return { ok: false, error: '无法识别要标记的玩家' };
+      }
+      const target = room.players.find((item) => item.id === action.playerId);
+      if (!target) return { ok: false, error: '目标玩家已经不在牌桌上了' };
+      const team = action.team;
+      if (team !== null && team !== 'red' && team !== 'blue') {
+        return { ok: false, error: '无法识别的队伍' };
+      }
+      if (team === target.team) return { ok: true };
+      target.team = team;
+      const owner = target.id === player.id ? '自己' : target.name;
+      this.addLog(
+        room,
+        team ? `${player.name} 将${owner}标为${TEAM_LABELS[team]}` : `${player.name} 取消了${owner}的队伍标记`,
+        'normal',
+      );
+      this.touch(room);
+      return { ok: true };
+    }
+
+    if (room.phase !== 'playing') return { ok: false, error: '牌局还没有开始' };
 
     if (action.type === 'adjustHp') {
       if (typeof action.playerId !== 'string') {
@@ -591,6 +618,7 @@ export class RoomStore {
         isHost: player.id === room.hostId,
         handCount: zones.hand.length,
         hp: player.hp,
+        team: player.team,
         hand: isSelf ? zones.hand.map((id) => this.cardView(room, id)) : null,
         equipment: zones.equipment.map((id) => this.cardView(room, id)),
         judgment: zones.judgment.map((id) => this.cardView(room, id)),
@@ -643,6 +671,7 @@ export class RoomStore {
       name,
       seat,
       hp: 4,
+      team: null,
       token: randomBytes(24).toString('base64url'),
       joinedAt: Date.now(),
     };

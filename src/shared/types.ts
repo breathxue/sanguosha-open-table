@@ -5,6 +5,8 @@ export type Suit = 'spade' | 'heart' | 'club' | 'diamond';
 export type CardCategory = 'basic' | 'trick' | 'equipment' | 'general';
 export type Kingdom = '魏' | '蜀' | '吴' | '群' | '晋';
 export type SkillTag = 'lord' | 'awakening' | 'limited' | 'locked';
+/** 队伍标记，纯展示，不影响任何操作。 */
+export type Team = 'red' | 'blue';
 
 export interface SkillInfo {
   name: string;
@@ -39,6 +41,7 @@ export interface PlayerView {
   isHost: boolean;
   handCount: number;
   hp: number;
+  team: Team | null;
   /** Only populated for the requesting player. */
   hand: CardView[] | null;
   equipment: CardView[];
@@ -94,7 +97,8 @@ export type TableAction =
   | { type: 'shuffle'; deck: DeckKind }
   | { type: 'move'; cardIds: string[]; to: ZoneRef }
   | { type: 'moveTop'; deck: DeckKind; to: ZoneRef }
-  | { type: 'adjustHp'; playerId: string; delta: number };
+  | { type: 'adjustHp'; playerId: string; delta: number }
+  | { type: 'setTeam'; playerId: string; team: Team | null };
 
 export type ClientMessage =
   | { type: 'action'; action: TableAction }
@@ -125,6 +129,11 @@ export const ZONE_LABELS: Record<PlayerZone, string> = {
   equipment: '装备区',
   judgment: '判定区',
   general: '武将区',
+};
+
+export const TEAM_LABELS: Record<Team, string> = {
+  red: '红队',
+  blue: '蓝队',
 };
 
 export const MAX_PLAYERS = 8;

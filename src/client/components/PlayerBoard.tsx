@@ -1,5 +1,6 @@
 import type { DragEvent } from 'react';
-import type { CardView, PlayerView, PlayerZone, ZoneRef } from '../../shared/types';
+import type { CardView, PlayerView, PlayerZone, Team, ZoneRef } from '../../shared/types';
+import { TEAM_LABELS } from '../../shared/types';
 import { cx, initialOf } from '../utils';
 import type { DragPayload } from '../dnd';
 import { CardBack, PlayingCard } from './PlayingCard';
@@ -14,8 +15,11 @@ interface PlayerBoardProps {
   onCardDragStart: (cardId: string, event: DragEvent<HTMLDivElement>) => void;
   onCardInfo?: (card: CardView) => void;
   onAdjustHp?: (playerId: string, delta: number) => void;
+  onSetTeam?: (playerId: string, team: Team | null) => void;
   onDrop: (payload: DragPayload, to: ZoneRef) => void;
 }
+
+const NEXT_TEAM: Record<'none' | Team, Team | null> = { none: 'red', red: 'blue', blue: null };
 
 const ZONE_META: Array<{ zone: Exclude<PlayerZone, 'hand'>; label: string; icon: 'cards' | 'shield' | 'eye' }> = [
   { zone: 'general', label: '武将', icon: 'cards' },
@@ -31,9 +35,11 @@ export function PlayerBoard({
   onCardDragStart,
   onCardInfo,
   onAdjustHp,
+  onSetTeam,
   onDrop,
 }: PlayerBoardProps) {
   const cardSize = 'xs';
+  const team = player.team;
   const hand = player.hand ?? [];
   const maxHp = player.general.find((card) => card.category === 'general')?.hp;
 
@@ -85,6 +91,7 @@ export function PlayerBoard({
       className={cx(
         'player-board',
         isSelf ? 'player-board--self' : 'player-board--opponent',
+        team && `player-board--team-${team}`,
         !player.connected && 'is-disconnected',
       )}
     >
@@ -99,6 +106,7 @@ export function PlayerBoard({
                 <Icon name="crown" size={11} />
               </span>
             ) : null}
+            {team ? <span className={`team-badge team-badge--${team}`}>{TEAM_LABELS[team]}</span> : null}
           </div>
           <span className="player-meta">
             <span>座位 {player.seat + 1}</span>
@@ -107,6 +115,17 @@ export function PlayerBoard({
           </span>
         </div>
         <div className="player-tools">
+          {onSetTeam ? (
+            <button
+              type="button"
+              className={cx('team-button', team && `team-button--${team}`)}
+              onClick={() => onSetTeam(player.id, NEXT_TEAM[team ?? 'none'])}
+              title="队伍标记：点击在 红队 → 蓝队 → 无 之间切换（纯展示）"
+              aria-label={`切换${player.name}的队伍标记，当前${team ? TEAM_LABELS[team] : '无'}`}
+            >
+              {team ? TEAM_LABELS[team][0] : '队'}
+            </button>
+          ) : null}
           {onAdjustHp ? (
             <div className="hp-control" title="体力（手动调整，牌桌不判定）">
               <button

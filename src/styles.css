@@ -5885,3 +5885,102 @@ ul {
   font-family: var(--font-ui);
   font-size: 12px;
 }
+
+/* ---- 队伍标记（两队对抗，纯展示） ---- */
+.team-badge {
+  display: inline-flex;
+  align-items: center;
+  height: 15px;
+  padding: 0 5px;
+  border: 1px solid transparent;
+  border-radius: 3px;
+  font-size: 7px;
+  font-weight: 650;
+  font-style: normal;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+}
+
+.team-badge--red {
+  border-color: rgba(214, 72, 60, 0.45);
+  color: #f0a39a;
+  background: rgba(214, 72, 60, 0.16);
+}
+
+.team-badge--blue {
+  border-color: rgba(72, 132, 214, 0.45);
+  color: #9fc3f0;
+  background: rgba(72, 132, 214, 0.16);
+}
+
+.team-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 23px;
+  height: 23px;
+  padding: 0;
+  border: 1px solid rgba(200, 164, 106, 0.22);
+  border-radius: 6px;
+  color: var(--muted);
+  background: rgba(0, 0, 0, 0.18);
+  font-size: 11px;
+  font-weight: 650;
+  line-height: 1;
+  cursor: pointer;
+  transition:
+    color 150ms ease,
+    background 150ms ease,
+    border-color 150ms ease;
+}
+
+.team-button:hover {
+  color: var(--ivory);
+  border-color: rgba(200, 164, 106, 0.45);
+}
+
+.team-button--red {
+  border-color: rgba(214, 72, 60, 0.55);
+  color: #f0a39a;
+  background: rgba(214, 72, 60, 0.18);
+}
+
+.team-button--blue {
+  border-color: rgba(72, 132, 214, 0.55);
+  color: #9fc3f0;
+  background: rgba(72, 132, 214, 0.18);
+}
+
+.player-board--team-red {
+  border-color: rgba(214, 72, 60, 0.4);
+  box-shadow:
+    inset 3px 0 0 rgba(214, 72, 60, 0.75),
+    0 9px 24px rgba(0, 0, 0, 0.22);
+}
+
+.player-board--team-blue {
+  border-color: rgba(72, 132, 214, 0.4);
+  box-shadow:
+    inset 3px 0 0 rgba(72, 132, 214, 0.75),
+    0 9px 24px rgba(0, 0, 0, 0.22);
+}
+
+.seat-tile .team-button {
+  position: absolute;
+  right: 8px;
+  bottom: 8px;
+}
+
+.seat-tile.is-team-red {
+  border-color: rgba(214, 72, 60, 0.45);
+  box-shadow: inset 3px 0 0 rgba(214, 72, 60, 0.75);
+}
+
+.seat-tile.is-team-blue {
+  border-color: rgba(72, 132, 214, 0.45);
+  box-shadow: inset 3px 0 0 rgba(72, 132, 214, 0.75);
+}
+
+.seat-info span .team-badge {
+  margin-left: 6px;
+}

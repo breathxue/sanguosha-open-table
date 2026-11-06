@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type DragEvent } from 'react';
-import type { CardView, ClientMessage, TableState, ZoneRef } from '../../shared/types';
+import type { CardView, ClientMessage, TableState, Team, ZoneRef } from '../../shared/types';
 import { cx } from '../utils';
 import { copyText, inviteUrl } from '../utils';
 import type { ConnectionStatus } from '../useRoomSocket';
@@ -191,6 +191,10 @@ export function GameScreen({ state, status, send, onLeave, notify }: GameScreenP
     dispatchAction({ type: 'adjustHp', playerId, delta });
   };
 
+  const setTeam = (playerId: string, team: Team | null) => {
+    dispatchAction({ type: 'setTeam', playerId, team });
+  };
+
   const drawFromDeck = (deck: 'general' | 'normal') => {
     dispatchAction({
       type: 'moveTop',
@@ -309,6 +313,7 @@ export function GameScreen({ state, status, send, onLeave, notify }: GameScreenP
                     onCardDragStart={handleCardDragStart}
                     onCardInfo={setGeneralInfo}
                     onAdjustHp={adjustHp}
+                    onSetTeam={setTeam}
                     onDrop={handleDrop}
                   />
                 ))}
@@ -397,6 +402,7 @@ export function GameScreen({ state, status, send, onLeave, notify }: GameScreenP
               onCardDragStart={handleCardDragStart}
               onCardInfo={setGeneralInfo}
               onAdjustHp={adjustHp}
+              onSetTeam={setTeam}
               onDrop={handleDrop}
             />
           </section>
