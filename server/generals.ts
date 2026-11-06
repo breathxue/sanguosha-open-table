@@ -8,8 +8,10 @@ export interface GeneralBlueprint {
 }
 
 /**
- * 标准包 + 风林火山，共 57 名非神武将。
- * 技能文本采用经典版描述；牌桌本身不做任何技能结算。
+ * 标准包 + 风林火山 + 一将成名（凌统）+ 姬系列女版武将，共 74 名。
+ * 名单与 public/hero/ 目录下的牌面图片一一对应：每位武将的图片为 public/hero/<name>.jpg，
+ * 由 server/cards.ts 写入 CardView.image 供前端显示。
+ * 技能文本采用牌面原文；牌桌本身不做任何技能结算。
  */
 export const GENERAL_BLUEPRINTS: GeneralBlueprint[] = [
   // ------------------------------------------------------------------ 标准包
@@ -372,18 +374,6 @@ export const GENERAL_BLUEPRINTS: GeneralBlueprint[] = [
     ],
   },
   {
-    name: '魏延',
-    kingdom: '蜀',
-    hp: 4,
-    skills: [
-      {
-        name: '狂骨',
-        description: '当你对距离1以内的一名角色造成1点伤害后，你回复1点体力。',
-        tags: ['locked'],
-      },
-    ],
-  },
-  {
     name: '小乔',
     kingdom: '吴',
     hp: 3,
@@ -435,18 +425,6 @@ export const GENERAL_BLUEPRINTS: GeneralBlueprint[] = [
       },
     ],
   },
-  {
-    name: '于吉',
-    kingdom: '群',
-    hp: 3,
-    skills: [
-      {
-        name: '蛊惑',
-        description:
-          '每名角色的回合限一次，你可以扣置一张手牌当任意一张基本牌或非延时类锦囊牌使用或打出。其他角色可以质疑：若为真，质疑者各失去1点体力；若为假，质疑者各摸一张牌，然后此牌作废。',
-      },
-    ],
-  },
 
   // ------------------------------------------------------------------ 林
   {
@@ -480,6 +458,18 @@ export const GENERAL_BLUEPRINTS: GeneralBlueprint[] = [
         description:
           '其他魏势力角色的判定牌生效后，若结果为黑色，该角色可以令你摸一张牌。',
         tags: ['lord'],
+      },
+    ],
+  },
+  {
+    name: '魏延',
+    kingdom: '蜀',
+    hp: 4,
+    skills: [
+      {
+        name: '狂骨',
+        description: '当你对距离1以内的一名角色造成1点伤害后，你回复1点体力。',
+        tags: ['locked'],
       },
     ],
   },
@@ -708,18 +698,6 @@ export const GENERAL_BLUEPRINTS: GeneralBlueprint[] = [
       },
     ],
   },
-  {
-    name: '颜良文丑',
-    kingdom: '群',
-    hp: 4,
-    skills: [
-      {
-        name: '双雄',
-        description:
-          '摸牌阶段，你可以改为进行判定，然后你获得此判定牌；本回合内，你可以将与此判定牌颜色不同的一张手牌当【决斗】使用。',
-      },
-    ],
-  },
 
   // ------------------------------------------------------------------ 山
   {
@@ -747,24 +725,6 @@ export const GENERAL_BLUEPRINTS: GeneralBlueprint[] = [
       {
         name: '急袭',
         description: '你可以将一张“田”当【顺手牵羊】使用。',
-      },
-    ],
-  },
-  {
-    name: '姜维',
-    kingdom: '蜀',
-    hp: 4,
-    skills: [
-      {
-        name: '挑衅',
-        description:
-          '出牌阶段限一次，你可以选择一名攻击范围内含有你的其他角色，令该角色对你使用一张【杀】；若其未如此做，你弃置其一张牌。',
-      },
-      {
-        name: '志继',
-        description:
-          '准备阶段，若你没有手牌，你减1点体力上限，然后选择一项：回复1点体力，或摸两张牌；然后你获得“观星”。',
-        tags: ['awakening'],
       },
     ],
   },
@@ -834,6 +794,18 @@ export const GENERAL_BLUEPRINTS: GeneralBlueprint[] = [
     ],
   },
   {
+    name: '颜良文丑',
+    kingdom: '群',
+    hp: 4,
+    skills: [
+      {
+        name: '双雄',
+        description:
+          '摸牌阶段，你可以改为进行判定，然后你获得此判定牌；本回合内，你可以将与此判定牌颜色不同的一张手牌当【决斗】使用。',
+      },
+    ],
+  },
+  {
     name: '蔡文姬',
     kingdom: '群',
     hp: 3,
@@ -864,6 +836,229 @@ export const GENERAL_BLUEPRINTS: GeneralBlueprint[] = [
         name: '新生',
         description: '当你受到1点伤害后，你可以获得一张新的“化身”。',
       },
+    ],
+  },
+
+  // ------------------------------------------------------------------ 一将成名
+  {
+    name: '凌统',
+    kingdom: '吴',
+    hp: 4,
+    skills: [
+      {
+        name: '旋风',
+        description:
+          '每当你失去一次装备区里的牌时，你可以执行下列两项中的一项：1. 视为对任意一名其他角色使用一张【杀】（此【杀】不计入每回合的使用限制）；2. 对与你距离为 1 以内的一名其他角色各造成一点伤害。',
+      },
+    ],
+  },
+
+  // ------------------------------------------------------------------ 姬系列（女版）
+  {
+    name: '女曹操',
+    kingdom: '魏',
+    hp: 4,
+    skills: [
+      { name: '虚实', description: '任何时候，每出一张【杀】，可摸一张牌。' },
+      {
+        name: '魏王',
+        description:
+          '主公技，出牌阶段，可将自己本回合之前已经装备的装备牌分给魏国武将，每分出一张，可摸两张牌。',
+        tags: ['lord'],
+      },
+    ],
+  },
+  {
+    name: '女夏侯惇',
+    kingdom: '魏',
+    hp: 4,
+    skills: [
+      {
+        name: '压制',
+        description: '出牌阶段，给任意玩家一张♠牌，让他下回合跳过摸牌阶段，一回合限一次。',
+      },
+    ],
+  },
+  {
+    name: '女张辽',
+    kingdom: '魏',
+    hp: 4,
+    skills: [
+      {
+        name: '突击',
+        description: '出牌阶段，可将任意武器牌当【杀】使用。使用武器牌当【杀】时不受【杀】的使用次数限制。',
+      },
+    ],
+  },
+  {
+    name: '女许褚',
+    kingdom: '魏',
+    hp: 4,
+    skills: [
+      {
+        name: '虎痴',
+        description: '出【杀】攻击成功或者【决斗】胜利时，可选择自己减一点体力使造成的伤害 +1。',
+      },
+    ],
+  },
+  {
+    name: '女曹丕',
+    kingdom: '魏',
+    hp: 3,
+    skills: [
+      { name: '狡黠', description: '始终不受【借刀杀人】【趁火打劫】的影响。' },
+      {
+        name: '权衡',
+        description: '任意玩家在出【杀】攻击成功后，你可以对该玩家立即出一张【杀】。',
+      },
+    ],
+  },
+  {
+    name: '女刘备',
+    kingdom: '蜀',
+    hp: 4,
+    skills: [
+      {
+        name: '仁义',
+        description:
+          '任何时候，可以帮其他玩家出【闪】和【桃】，也可以请其他玩家帮自己出【闪】和【桃】。',
+      },
+      {
+        name: '蜀王',
+        description:
+          '主公技，回合内可将自己手牌分给蜀国武将，每分出两张牌可摸一张牌（一回合最多可摸两张牌）。',
+        tags: ['lord'],
+      },
+    ],
+  },
+  {
+    name: '女关羽',
+    kingdom: '蜀',
+    hp: 4,
+    skills: [{ name: '傲骨', description: '可立即获取对你使用单体锦囊的玩家一张牌。' }],
+  },
+  {
+    name: '女张飞',
+    kingdom: '蜀',
+    hp: 4,
+    skills: [
+      {
+        name: '大喝',
+        description:
+          '任意玩家回合开始阶段，你给该玩家一张牌，并选择一项：1. 对方出牌阶段不能出【杀】；2. 对方出牌阶段不能出锦囊。',
+      },
+    ],
+  },
+  {
+    name: '女赵云',
+    kingdom: '蜀',
+    hp: 4,
+    skills: [
+      { name: '洞察', description: '可选择弃一张【杀】或者【闪】，避免对自己作用的锦囊效果。' },
+    ],
+  },
+  {
+    name: '女诸葛亮',
+    kingdom: '蜀',
+    hp: 3,
+    skills: [
+      { name: '神算', description: '可将三张牌当做任意一张基本牌或锦囊牌使用。' },
+      {
+        name: '祈祷',
+        description:
+          '任何时候，受到使得体力被扣减到 0 或更低的伤害时，可立即判定，若为红色花色，则该伤害无效。',
+      },
+    ],
+  },
+  {
+    name: '女孙权',
+    kingdom: '吴',
+    hp: 4,
+    skills: [
+      { name: '整装', description: '弃牌阶段，手牌上限是体力上限 +1。' },
+      {
+        name: '吴王',
+        description:
+          '主公技，除自己外，每当有一名吴国武将判定一次，你就可以摸一张牌，一轮限两次。',
+        tags: ['lord'],
+      },
+    ],
+  },
+  {
+    name: '女甘宁',
+    kingdom: '吴',
+    hp: 4,
+    skills: [
+      { name: '水枭', description: '始终无视其他玩家的马，始终不受【过河拆桥】的影响。' },
+    ],
+  },
+  {
+    name: '女吕蒙',
+    kingdom: '吴',
+    hp: 3,
+    skills: [
+      { name: '白衣', description: '任何时候，可将任意锦囊当【杀】使用。' },
+      { name: '袭取', description: '本回合不摸牌，下回合多摸三张牌。（不可累积）' },
+    ],
+  },
+  {
+    name: '女周瑜',
+    kingdom: '吴',
+    hp: 3,
+    skills: [
+      {
+        name: '反计',
+        description: '躲闪掉黑色【杀】攻击时，可将【杀】效果返回给出【杀】的玩家。',
+      },
+      { name: '都督', description: '每当有玩家使用群体锦囊时，你摸一张牌。' },
+    ],
+  },
+  {
+    name: '女太史慈',
+    kingdom: '吴',
+    hp: 3,
+    skills: [
+      {
+        name: '双持',
+        description: '可同时装备两种武器和防具，攻击范围取其长，攻击和防具效果叠加。',
+      },
+    ],
+  },
+  {
+    name: '女孙策',
+    kingdom: '吴',
+    hp: 3,
+    skills: [
+      { name: '养战', description: '回合外，每失去一张手牌立即摸一张牌。' },
+      {
+        name: '借兵',
+        description:
+          '出牌阶段，给任意玩家一张牌，该玩家要给你一张【杀】，否则抽取该玩家两张牌。一回合限一次。',
+      },
+    ],
+  },
+  {
+    name: '女吕布',
+    kingdom: '群',
+    hp: 4,
+    skills: [
+      {
+        name: '飞将',
+        description: '出【杀】攻击满体力玩家时，强制命中。当打出的【杀】是最后一张手牌时，伤害加倍。',
+      },
+    ],
+  },
+  {
+    name: '女袁绍',
+    kingdom: '群',
+    hp: 3,
+    skills: [
+      {
+        name: '歃盟',
+        description:
+          '回合开始前指定一名玩家和你结盟，在你下回合开始前不得互相出【杀】，一回合限一次。',
+      },
+      { name: '威望', description: '不受【决斗】影响。' },
     ],
   },
 ];

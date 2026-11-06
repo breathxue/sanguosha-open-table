@@ -34,6 +34,9 @@ export function GeneralDetailModal({ card, onClose }: GeneralDetailModalProps) {
     >
       <div className={cx('general-detail', kingdomClass(card.kingdom))}>
         <div className="general-detail-hero">
+          {card.image ? (
+            <img className="general-detail-art" src={card.image} alt={`${card.name}牌面`} />
+          ) : null}
           <span className="general-detail-kingdom">{card.kingdom}</span>
           <div className="general-detail-stats">
             <span>基础体力</span>

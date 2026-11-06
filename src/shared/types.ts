@@ -27,6 +27,8 @@ export interface CardView {
   kingdom?: Kingdom;
   hp?: number;
   skills?: SkillInfo[];
+  /** 牌面图片地址（目前仅武将牌有），由服务端按 public/hero/<武将名>.jpg 生成。 */
+  image?: string;
 }
 
 export interface PlayerView {

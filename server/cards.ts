@@ -96,6 +96,7 @@ export function createCards(): {
       kingdom: blueprint.kingdom,
       hp: blueprint.hp,
       skills: blueprint.skills,
+      image: `/hero/${encodeURIComponent(blueprint.name)}.jpg`,
     };
     cards.set(id, card);
     generalIds.push(id);
