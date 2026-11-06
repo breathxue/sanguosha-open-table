@@ -8,9 +8,9 @@
 
 这是一张给固定牌友用的线上三国杀牌桌：服务器只同步每个人的操作，出牌、判定、结算、胜负全部由玩家口头裁定，代码里没有规则引擎。产品定位是「线下桌游的线上替代」，而不是自动化对战游戏。
 
-- 目标用户：凑不齐线下局的小圈子，1 到 8 人一桌，通过房间号或邀请链接入座。
+- 目标用户：凑不齐线下局的小圈子，4 到 8 人一桌，通过房间号或邀请链接入座。
 - 核心理念：任意可见牌可以移到任意区域，没有「这张牌不能放这里」的拦截；手牌仅本人可见，其余区域全桌公开。
-- 内容范围：57 位经典武将（含技能文案、势力、体力上限）和一副标准普通牌，牌堆各自洗乱倒扣。
+- 内容范围：74 位武将（标准包、风林火山、凌统和 18 位姬系列女版，含技能文案、势力、体力上限，与 public/hero/ 下的牌面图片一一对应）和一副标准普通牌，牌堆各自洗乱倒扣。
 - 运行形态：单进程 Node 服务，房间全部保存在内存中，服务重启即清空；目前部署在 http://159.75.6.38/ 做公开测试。
 - 代码规模：前后端 TypeScript 约 5,600 行，另有约 5,800 行 CSS；仓库 [breathxue/sanguosha-open-table](https://github.com/breathxue/sanguosha-open-table)，截至 2026-11-05 共 7 次提交，当前版本 bb8bc7b。
 
@@ -59,7 +59,7 @@ npm 脚本：`dev` 同时起后端和 Vite；`build` 先 `tsc --noEmit` 再 `vit
 | `server/index.ts` | 248 | 进程入口：Express 路由、静态文件、WebSocket 接入、限流、心跳、优雅退出 |
 | `server/rooms.ts` | 711 | `RoomStore`：房间增删、入座离座、动作校验与执行、按玩家裁剪视图、广播、闲置回收 |
 | `server/cards.ts` | 123 | 建牌：普通牌蓝图×花色点数随机分配，武将牌由蓝图生成，洗牌用 `crypto.randomInt` |
-| `server/generals.ts` | 869 | 57 位武将的静态数据：势力、体力、技能文案和标签 |
+| `server/generals.ts` | 1,064 | 74 位武将的静态数据：势力、体力、技能文案和标签 |
 | `src/shared/types.ts` | 129 | 协议契约：`TableState`、`TableAction`、`ClientMessage`、`ServerMessage`、`ZoneRef` 及常量 |
 | `src/App.tsx` | 169 | 顶层路由：按是否有会话、是否收到状态、房间阶段切换四个屏幕；管理 toast 和 URL 中的 `room` 参数 |
 | `src/client/useRoomSocket.ts` | 161 | WebSocket 连接、指数退避重连、心跳、网络事件监听、致命错误码识别 |
@@ -88,7 +88,7 @@ npm 脚本：`dev` 同时起后端和 Vite；`build` 先 `tsc --noEmit` 再 `vit
 | Card | `id`、`deck`、`name`、`category`（basic / trick / equipment / general）、`suit`、`rank`、`kingdom`、`hp`、`skills[]` | 武将牌和普通牌同一结构，武将多出势力、体力、技能三个字段 |
 | ZoneRef | `deck`（含 top / bottom）、`discard`、`player + zone` | 所有动作的目标地址，前后端共用 |
 
-普通牌共 104 张，按蓝图数量展开后用固定步长循环分配花色和点数，因此花色点数不对应标准牌库。武将牌 57 张，来自标准包和风林火山，不含神武将。
+普通牌共 104 张，按蓝图数量展开后用固定步长循环分配花色和点数，因此花色点数不对应标准牌库。武将牌 74 张，来自标准包、风林火山、一将成名（凌统）和姬系列女版，不含神武将，每张对应 public/hero/<武将名>.jpg。
 
 可见性规则是服务端在 `viewFor` 里按玩家裁剪的，前端从未拿到不该看的数据：
 
