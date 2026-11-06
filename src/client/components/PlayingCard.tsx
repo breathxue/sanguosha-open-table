@@ -53,6 +53,7 @@ export function PlayingCard({
   className,
 }: PlayingCardProps) {
   const isGeneral = card.category === 'general';
+  const hasArt = isGeneral && Boolean(card.image);
   const red = card.suit === 'heart' || card.suit === 'diamond';
   const interactive = Boolean(onClick) || Boolean(onDragStart);
   const cardTitle = isGeneral
@@ -73,6 +74,7 @@ export function PlayingCard({
         'playing-card',
         isGeneral ? 'playing-card--general' : 'playing-card--normal',
         isGeneral && `playing-card--${kingdomClass(card.kingdom)}`,
+        hasArt && 'has-art',
         `playing-card--${size}`,
         selected && 'is-selected',
         interactive && 'is-interactive',
@@ -91,6 +93,16 @@ export function PlayingCard({
     >
       {isGeneral ? (
         <>
+          {hasArt ? (
+            <img
+              className="general-art"
+              src={card.image}
+              alt=""
+              draggable={false}
+              loading="lazy"
+              decoding="async"
+            />
+          ) : null}
           <div className="card-sheen" />
           <div className="general-topline">
             <span className="kingdom-seal">{card.kingdom}</span>
@@ -112,6 +124,7 @@ export function PlayingCard({
             ) : null}
           </div>
           <div className="general-name">{card.name}</div>
+          {hasArt ? <div className="general-art-name">{card.name}</div> : null}
           {card.skills && card.skills.length > 0 ? (
             <div className="general-skills">{card.skills.map((skill) => skill.name).join(' · ')}</div>
           ) : null}
