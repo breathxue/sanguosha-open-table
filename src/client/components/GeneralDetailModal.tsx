@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react';
 import type { CardView, SkillTag } from '../../shared/types';
 import { cx } from '../utils';
 import { kingdomClass } from '../kingdoms';
@@ -7,6 +8,8 @@ import { Modal } from './Modal';
 interface GeneralDetailModalProps {
   card: CardView;
   onClose: () => void;
+  /** 放在底部的操作按钮，例如「展示给全桌」。 */
+  actions?: ReactNode;
 }
 
 const TAG_LABEL: Record<SkillTag, string> = {
@@ -16,27 +19,33 @@ const TAG_LABEL: Record<SkillTag, string> = {
   locked: '锁定技',
 };
 
-export function GeneralDetailModal({ card, onClose }: GeneralDetailModalProps) {
+export function GeneralDetailModal({ card, onClose, actions }: GeneralDetailModalProps) {
   const hp = card.hp ?? 4;
   return (
     <Modal
       title={card.name}
-      subtitle={`${card.kingdom ?? ''}势力 · 基础体力 ${hp}`}
+      subtitle={`${card.kingdom ?? ''}势力 · 基础体力 ${hp}${card.revealed ? ' · 已向全桌展示' : ''}`}
       onClose={onClose}
-      size="md"
+      size="lg"
       className="general-detail-modal"
       footer={
-        <p className="general-detail-note">
-          <Icon name="scale" size={14} />
-          技能文本仅作参考，牌桌不会自动结算。
-        </p>
+        <>
+          <p className="general-detail-note">
+            <Icon name="scale" size={14} />
+            技能文本仅作参考，牌桌不会自动结算。
+          </p>
+          {actions ? <div className="general-detail-actions">{actions}</div> : null}
+        </>
       }
     >
-      <div className={cx('general-detail', kingdomClass(card.kingdom))}>
+      <div className={cx('general-detail', 'general-detail--zoom', kingdomClass(card.kingdom))}>
+        {card.image ? (
+          <figure className="general-detail-zoom">
+            <img className="general-detail-zoom-art" src={card.image} alt={`${card.name}牌面`} />
+          </figure>
+        ) : null}
+        <div className="general-detail-body">
         <div className="general-detail-hero">
-          {card.image ? (
-            <img className="general-detail-art" src={card.image} alt={`${card.name}牌面`} />
-          ) : null}
           <span className="general-detail-kingdom">{card.kingdom}</span>
           <div className="general-detail-stats">
             <span>基础体力</span>
@@ -73,6 +82,7 @@ export function GeneralDetailModal({ card, onClose }: GeneralDetailModalProps) {
               </article>
             ))
           )}
+        </div>
         </div>
       </div>
     </Modal>

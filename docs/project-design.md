@@ -8,7 +8,7 @@
 
 这是一张给固定牌友用的线上三国杀牌桌：服务器只同步每个人的操作，出牌、判定、结算、胜负全部由玩家口头裁定，代码里没有规则引擎。产品定位是「线下桌游的线上替代」，而不是自动化对战游戏。
 
-- 目标用户：凑不齐线下局的小圈子，4 到 8 人一桌，通过房间号或邀请链接入座。
+- 目标用户：凑不齐线下局的小圈子，通过房间号或邀请链接入座。对局只做 **2v2（4 人）和 3v3（6 人）** 两种模式，两队交叉入座（A B A B / A B A B A B），其他模式暂不做。
 - 核心理念：任意可见牌可以移到任意区域，没有「这张牌不能放这里」的拦截；手牌仅本人可见，其余区域全桌公开。
 - 内容范围：74 位武将（标准包、风林火山、凌统和 18 位姬系列女版，含技能文案、势力、体力上限，与 public/hero/ 下的牌面图片一一对应）和一副标准普通牌，牌堆各自洗乱倒扣。
 - 运行形态：单进程 Node 服务，房间全部保存在内存中，服务重启即清空；目前部署在 http://159.75.6.38/ 做公开测试。
@@ -71,7 +71,7 @@ npm 脚本：`dev` 同时起后端和 Vite；`build` 先 `tsc --noEmit` 再 `vit
 | `src/client/components/GameScreen.tsx` | 529 | 牌桌主屏：选牌、拖拽、移动对话框、弃牌区、武将详情、离开确认 |
 | `src/client/components/HomeScreen.tsx` | 335 | 首页：昵称、自定义房间号创建、输入房间号加入 |
 | `src/client/components/LobbyScreen.tsx` | 211 | 等待大厅：座位列表、邀请链接复制、开始牌局 |
-| 其余 13 个组件 | 约 1,500 | `PlayerBoard`、`PlayingCard`、`Piles`、`MoveDialog`、`SidePanel`、`TopBar` 等展示组件 |
+| 其余 13 个组件 | 约 1,500 | `PlayerBoard`、`PlayingCard`、`Piles`、`SidePanel`、`TopBar` 等展示组件 |
 | `src/styles.css` | 5,801 | 全部样式，10 个媒体查询，最小适配 430 px，支持减弱动效和粗指针设备 |
 | `Dockerfile` / `docker-compose.yml` |  | 容器化方案，当前服务器未使用 |
 | `deploy.sh` |  | 本次 PR 新增，见部署一节 |
@@ -82,9 +82,9 @@ npm 脚本：`dev` 同时起后端和 Vite；`build` 先 `tsc --noEmit` 再 `vit
 
 | 实体 | 字段 | 说明 |
 | --- | --- | --- |
-| Room | `code` 5 位、`hostId`、`phase`（lobby / playing）、`revision`、`players[]`、`cards: Map`、`decks{general, normal}`、`discard[]`、`playerZones: Map`、`logs[]`、`chat[]`、`sockets: Map`、`cleanupTimer` | 房间号字母表去掉了易混淆的 0 O 1 I；日志上限 160 条，聊天 100 条 |
-| RoomPlayer | `id`、`name` ≤ 12 字、`seat`、`hp` 初始 4、`token` 24 字节随机、`joinedAt` | `token` 是唯一凭证，没有账号体系 |
-| PlayerZones | `hand[]`、`equipment[]`、`judgment[]`、`general[]` | 每个玩家四个区域，存牌 id |
+| Room | `code` 5 位、`mode`（2v2 / 3v3，待实现，决定人数上限 4 / 6）、`hostId`、`phase`（lobby / playing）、`revision`、`players[]`、`cards: Map`、`decks{general, normal}`、`discard[]`、`playerZones: Map`、`logs[]`、`chat[]`、`sockets: Map`、`cleanupTimer` | 房间号字母表去掉了易混淆的 0 O 1 I；日志上限 160 条，聊天 100 条 |
+| RoomPlayer | `id`、`name` ≤ 12 字、`seat`、`team`、`hp` 初始 4、`token` 24 字节随机、`joinedAt` | `token` 是唯一凭证，没有账号体系。`team` 目前手动标记；2v2 / 3v3 落地后由 `seat` 单双号推导：单号红队、双号蓝队 |
+| PlayerZones | `hand[]`、`equipment[]`、`general[]` | 每个玩家三个区域，存牌 id；判定区是房间级的 `Room.judgment[]` |
 | Card | `id`、`deck`、`name`、`category`（basic / trick / equipment / general）、`suit`、`rank`、`kingdom`、`hp`、`skills[]` | 武将牌和普通牌同一结构，武将多出势力、体力、技能三个字段 |
 | ZoneRef | `deck`（含 top / bottom）、`discard`、`player + zone` | 所有动作的目标地址，前后端共用 |
 
@@ -92,11 +92,16 @@ npm 脚本：`dev` 同时起后端和 Vite；`build` 先 `tsc --noEmit` 再 `vit
 
 可见性规则是服务端在 `viewFor` 里按玩家裁剪的，前端从未拿到不该看的数据：
 
-- 手牌：只有本人拿到 `hand[]`，其他人只拿到 `handCount`。
+- 手牌：只有本人拿到 `hand[]`，其他人只拿到 `handCount`；`handCount` 只统计普通牌。
+- 武将区：每张武将牌有 `revealed` 标记。未展示的武将对其他人只下发 `{id, hidden: true}`（前端画牌背），本人和已展示的下发完整牌面。进牌堆时 `revealed` 清零，进弃牌区、公共判定区、装备区时置为已展示。开局后前端不再显示武将牌堆。
+- 分区：`move` 和 `moveTop` 会按牌的类别改写目标区域，武将牌进手牌区落到武将区，普通牌进武将区落到手牌区，所以手牌区只有普通牌、武将区只有武将牌。
 - 牌堆：只下发剩余张数，没有任何牌 id，所以前端无法猜牌堆顺序。
-- 装备区、判定区、武将区、弃牌区：全桌公开。
-- 移动限制：只能移动自己能看见的牌，即自己的手牌和所有公开牌；别人的手牌不能动，牌堆内部的牌只能通过 `moveTop` 取顶。
+- 装备区、武将区、弃牌区、公共判定区：全桌公开。判定区不按玩家划分，整桌只有一个，放在公共牌区中间。
+- 移动限制：只能移动自己能看见的牌，即自己的手牌、自己的武将和所有公开牌；别人的手牌和别人未展示的武将不能动，牌堆内部的牌只能通过 `moveTop` 取顶。
+- 开局发牌：`start` 时每人从武将牌堆顶摸 5 张进武将区（`GENERAL_DRAW_COUNT`），前端弹选将窗让玩家保留 3 张（`GENERAL_KEEP_COUNT`），其余以普通 `move` 放回武将牌堆底；开局后加入的玩家同样发 5 张。
 - 日志脱敏：涉及手牌或牌堆的移动只记录张数，不记录牌名。
+
+座次（待实现）：建房时选 `mode`，人数上限随之为 4 或 6；加入补最小空位，座位 1、3、5 为红队，2、4、6 为蓝队，天然交叉落座；大厅里可换座（空位直接坐，有人的座位需对方确认互换），开局后锁定。队伍不再是独立可改的字段，而是座位的函数。
 
 生命周期：创建或加入不存在的房间号都会建房；最后一人离开即删房；房主离开由座位最小者接任；所有人断线后 2 小时无人回来则自动删房。
 
@@ -106,7 +111,7 @@ HTTP 只用于进房拿凭证，进房后一切走 WebSocket。服务端每次�
 
 | 接口 | 请求 | 响应 |
 | --- | --- | --- |
-| `POST /api/rooms` | `{playerName, roomCode?}` | 201 `Session`，`roomCode` 重复返 409 |
+| `POST /api/rooms` | `{playerName, roomCode?, mode?}`（`mode` 待实现，默认 `2v2`） | 201 `Session`，`roomCode` 重复返 409 |
 | `POST /api/rooms/:code/join` | `{playerName}` | 201 `Session`；房间不存在则自动创建；满员或重名返 409 |
 | `GET /api/rooms/:code` |  | `RoomSummary`，不存在返 404 |
 | `GET /api/health` |  | `{ok, rooms, time}` |
@@ -116,14 +121,16 @@ HTTP 只用于进房拿凭证，进房后一切走 WebSocket。服务端每次�
 
 客户端消息五种：`action`（携带 `TableAction`）、`start`、`leave`、`chat`、`ping`。服务端消息四种：`state`、`error`、`left`、`pong`。
 
-`TableAction` 六种，是整个牌桌的全部操作面：
+`TableAction` 七种，是整个牌桌的全部操作面：
 
 - `move`：把一组牌 id 移到一个 `ZoneRef`，一次最多 100 张。
 - `moveTop`：把某牌堆顶的一张移到 `ZoneRef`，摸牌和翻牌都是它。
-- `shuffle`：洗某个牌堆。
-- `adjustHp`：给任意玩家体力加减，单次 ± 10 以内，范围 0 到 99。
-- `setHp`：把任意玩家体力直接设为某值，0 到 99，供「按武将设体力」按钮使用。
-- `setTeam`：把任意玩家标为红队、蓝队或清除标记，大厅阶段也可用，纯展示。
+- `shuffle`：洗某个牌堆（服务端保留，当前界面没有入口）。
+- `adjustHp`：给自己的体力加减，单次 ± 10 以内，范围 0 到 99；目标不是自己时拒绝。
+- `setHp`：把自己的体力直接设为某值，0 到 99，供「按武将设体力」按钮使用；目标不是自己时拒绝。
+- `reveal`：把自己武将区里的武将展示给全桌，只能展示自己的、只能是武将牌，展示后不可收回。
+- `setTeam`：把任意玩家标为红队、蓝队或清除标记，大厅阶段也可用，纯展示。2v2 / 3v3 落地后下线，队伍改由座位推导。
+- `swapSeat`（待实现）：大厅阶段换到空位，或向有人的座位发起互换、对方确认；开局后拒绝。
 
 连接维护：服务端 30 秒 ping 一次，两次未应答即断开；客户端 25 秒发一次应用层 `ping`。断线后客户端按 0.8 秒起步、最大 10 秒的指数退避重连，监听浏览器 `online` 事件立即重试。关闭码 4001（已离开）、4003（凭证无效）、4004（房间已结束）视为致命，不重连，直接清会话回首页。
 
@@ -135,23 +142,25 @@ HTTP 只用于进房拿凭证，进房后一切走 WebSocket。服务端每次�
 
 屏幕切换由 `App.tsx` 按三个条件决定，没有路由库：
 
-1. 没有会话：`HomeScreen`，输昵称、建房或输房间号加入。
+1. 没有会话：`HomeScreen`，输昵称、建房或输房间号加入。待实现：建房时选 2v2 或 3v3，默认 2v2。
 2. 有会话但还没收到状态：`ConnectingScreen`，显示连接或重连中。
-3. 房间在 lobby 阶段：`LobbyScreen`，座位列表、复制邀请链接、开始牌局。
+3. 房间在 lobby 阶段：`LobbyScreen`，座位列表、复制邀请链接、开始牌局。待实现：座位按 A B A B 环形展示队色，可换座，人没齐时提示还差几人。
 4. 房间在 playing 阶段：`GameScreen`，牌桌主屏。
 
-`GameScreen` 是最重的组件，持有八个本地 UI 状态：选中的牌 id 集合、移动对话框来源、弃牌区是否展开、离开确认、侧边栏开关、武将详情、桌面拖拽中、触控拖拽中。它把 `send` 包装成 `dispatch(action)` 传给子组件。
+`GameScreen` 是最重的组件，持有九个本地 UI 状态：选中的牌 id 集合、移动对话框来源、弃牌区是否展开、离开确认、侧边栏开关、武将详情、桌面拖拽中、触控拖拽中、选将窗是否已关闭。它把 `send` 包装成 `dispatch(action)` 传给子组件。
+
+选牌后的操作（展示、取消）固定放在「你的座位」那一行里，这一行高度不变，所以选牌不会推动牌桌布局；没有底部浮动操作条。
 
 | 组件 | 职责 |
 | --- | --- |
 | `TopBar` | 房间号、连接状态徽标、侧边栏和离开按钮 |
-| `PlayerBoard` | 一个玩家的四个区域加体力按钮；自己的板子展开手牌，别人的只显示张数 |
-| `Piles` | 两个牌堆和弃牌区；点击摸牌，拖动时显示牌堆顶和牌堆底两个投放区 |
+| `SeatCard`（原 `PlayerBoard`） | 一个玩家的座位卡：左侧竖条放名字 / 体力 / 手牌数，右侧武将叠放。对手的卡在武将下方放 4 个小装备槽，整张小牌面展示；自己的卡不放这一行，而是依次展开手牌区和装备区（4 个槽位，超出横向滚动）。判定区是公共的，见 `JudgmentZone`牌桌上其他人从自己的下家起按座次顺时针排成一行 |
+| `Piles` | 公共牌区的三块：`JudgmentZone`（判定区，左 20%，叠放只露最新一张）、`DiscardPile`（弃牌区，中 60%，开放式桌面：每张弃牌带位置自由摆放，拖到哪就放哪，区内再拖即挪位置）、`DeckPile`（普通牌堆，右 20%，点击摸牌）。放回牌堆不区分牌顶 / 牌底 |
 | `PlayingCard` | 单张牌的渲染，武将牌按势力配色，带详情按钮 |
 | `DropZone` | 统一的投放区容器，用 `data-drop-zone` 属性序列化 `ZoneRef`，桌面和触控共用 |
-| `MoveDialog` | 选中牌后「移动至…」的目标选择，含牌堆顶底选项 |
 | `SidePanel` | 操作记录和聊天，手机端为抽屉 |
 | `GeneralDetailModal` | 武将技能全文 |
+| `GeneralPickModal` | 开局选将：武将区超过 3 张时弹出，勾 3 张保留，其余放回武将牌堆底，可稍后再选 |
 
 拖拽有两套实现，最终都落到同一个 `move` 或 `moveTop` 动作：
 
@@ -210,6 +219,7 @@ HTTP 只用于进房拿凭证，进房后一切走 WebSocket。服务端每次�
 
 **短期，不改架构**
 
+- [ ] 对局模式 2v2 / 3v3：`Room.mode` 与人数上限，座位单双号定队伍，大厅换座，牌桌按座次排列，下线手动「队」按钮。其他模式不做。
 - [ ] 合并 `deploy.sh`，打通本地到服务器的发布和回滚。
 - [ ] 修复未接入房间永不回收的问题，给 HTTP 接口加按 IP 限流。
 - [ ] 给 `performAction` 和 `viewFor` 写单元测试（Vitest 与 Vite 同源，接入成本最低），覆盖移动规则和可见性。

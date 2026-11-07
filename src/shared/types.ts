@@ -1,6 +1,6 @@
 export type DeckKind = 'general' | 'normal';
 export type Phase = 'lobby' | 'playing';
-export type PlayerZone = 'hand' | 'equipment' | 'judgment' | 'general';
+export type PlayerZone = 'hand' | 'equipment' | 'general';
 export type Suit = 'spade' | 'heart' | 'club' | 'diamond';
 export type CardCategory = 'basic' | 'trick' | 'equipment' | 'general';
 export type Kingdom = '魏' | '蜀' | '吴' | '群' | '晋';
@@ -14,9 +14,18 @@ export interface SkillInfo {
   tags?: SkillTag[];
 }
 
+/** 开放式弃牌区里的一个点：牌的中心相对弃牌区宽高的比例，0–1。 */
+export interface TablePoint {
+  x: number;
+  y: number;
+}
+
 export type ZoneRef =
   | { kind: 'deck'; deck: DeckKind; placement?: 'top' | 'bottom' }
-  | { kind: 'discard' }
+  /** 弃牌区是开放式桌面：带 position 表示放到指定位置，不带则由服务端自动找位置。 */
+  | { kind: 'discard'; position?: TablePoint }
+  /** 公共判定区：全桌共用一个，不再按玩家划分。 */
+  | { kind: 'judgment' }
   | { kind: 'player'; playerId: string; zone: PlayerZone };
 
 export interface CardView {
@@ -31,6 +40,12 @@ export interface CardView {
   skills?: SkillInfo[];
   /** 牌面图片地址（目前仅武将牌有），由服务端按 public/hero/<武将名>.jpg 生成。 */
   image?: string;
+  /** 武将牌：是否已向全桌展示。未展示的武将只有持有者能看到牌面，其他人只看到牌背。 */
+  revealed?: boolean;
+  /** 他人武将区里未展示的武将：只给 id 和牌背，没有名字等信息。 */
+  hidden?: boolean;
+  /** 只有弃牌区里的牌有：在开放式弃牌区里的摆放位置。 */
+  position?: TablePoint;
 }
 
 export interface PlayerView {
@@ -45,7 +60,6 @@ export interface PlayerView {
   /** Only populated for the requesting player. */
   hand: CardView[] | null;
   equipment: CardView[];
-  judgment: CardView[];
   general: CardView[];
 }
 
@@ -73,6 +87,8 @@ export interface TableState {
   players: PlayerView[];
   deckCounts: Record<DeckKind, number>;
   discard: CardView[];
+  /** 公共判定区里的牌，按放入顺序排列。 */
+  judgment: CardView[];
   logs: LogEntry[];
   chat: ChatMessage[];
   createdAt: number;
@@ -99,7 +115,9 @@ export type TableAction =
   | { type: 'moveTop'; deck: DeckKind; to: ZoneRef }
   | { type: 'adjustHp'; playerId: string; delta: number }
   | { type: 'setHp'; playerId: string; hp: number }
-  | { type: 'setTeam'; playerId: string; team: Team | null };
+  | { type: 'setTeam'; playerId: string; team: Team | null }
+  /** 把自己武将区里的武将展示给全桌，展示后不可收回。 */
+  | { type: 'reveal'; cardIds: string[] };
 
 export type ClientMessage =
   | { type: 'action'; action: TableAction }
@@ -128,7 +146,6 @@ export const DECK_LABELS: Record<DeckKind, string> = {
 export const ZONE_LABELS: Record<PlayerZone, string> = {
   hand: '手牌区',
   equipment: '装备区',
-  judgment: '判定区',
   general: '武将区',
 };
 
@@ -138,4 +155,8 @@ export const TEAM_LABELS: Record<Team, string> = {
 };
 
 export const MAX_PLAYERS = 8;
+/** 开局每人从武将牌堆摸的张数。 */
+export const GENERAL_DRAW_COUNT = 5;
+/** 选将后建议保留的张数，其余放回武将牌堆底。 */
+export const GENERAL_KEEP_COUNT = 3;
 export const ROOM_CODE_LENGTH = 5;

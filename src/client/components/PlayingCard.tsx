@@ -41,6 +41,8 @@ interface PlayingCardProps {
   onDragStart?: (event: DragEvent<HTMLDivElement>) => void;
   onInfo?: () => void;
   className?: string;
+  /** 武将牌：把势力和名字竖排在牌的左侧（叠放时露出的那一条），而不是底部横排。 */
+  sideName?: boolean;
 }
 
 export function PlayingCard({
@@ -51,6 +53,7 @@ export function PlayingCard({
   onDragStart,
   onInfo,
   className,
+  sideName = false,
 }: PlayingCardProps) {
   const isGeneral = card.category === 'general';
   const hasArt = isGeneral && Boolean(card.image);
@@ -75,6 +78,7 @@ export function PlayingCard({
         isGeneral ? 'playing-card--general' : 'playing-card--normal',
         isGeneral && `playing-card--${kingdomClass(card.kingdom)}`,
         hasArt && 'has-art',
+        hasArt && sideName && 'is-side-name',
         `playing-card--${size}`,
         selected && 'is-selected',
         interactive && 'is-interactive',
@@ -124,7 +128,13 @@ export function PlayingCard({
             ) : null}
           </div>
           <div className="general-name">{card.name}</div>
-          {hasArt ? <div className="general-art-name">{card.name}</div> : null}
+          {hasArt && sideName ? (
+            <div className="general-art-side">
+              <span className="general-art-side-kingdom">{card.kingdom}</span>
+              <span className="general-art-side-name">{card.name}</span>
+            </div>
+          ) : null}
+          {hasArt && !sideName ? <div className="general-art-name">{card.name}</div> : null}
           {card.skills && card.skills.length > 0 ? (
             <div className="general-skills">{card.skills.map((skill) => skill.name).join(' · ')}</div>
           ) : null}
