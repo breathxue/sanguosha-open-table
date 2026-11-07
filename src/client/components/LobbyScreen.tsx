@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import type { ClientMessage, TableState } from '../../shared/types';
+import type { ClientMessage, TableState, Team } from '../../shared/types';
+import { TEAM_LABELS } from '../../shared/types';
 import type { ConnectionStatus } from '../useRoomSocket';
 import type { ToastTone } from '../types';
 import { copyText, formatTime, initialOf, inviteUrl } from '../utils';
@@ -34,6 +35,15 @@ export function LobbyScreen({ state, status, send, onLeave, notify }: LobbyScree
       return;
     }
     if (!send({ type: 'start' })) return;
+  };
+
+  const nextTeam: Record<'none' | Team, Team | null> = { none: 'red', red: 'blue', blue: null };
+  const setTeam = (playerId: string, team: Team | null) => {
+    if (status !== 'online') {
+      notify('网络尚未恢复，请稍后再试', 'error');
+      return;
+    }
+    send({ type: 'action', action: { type: 'setTeam', playerId, team } });
   };
 
   const playersBySeat = new Map(state.players.map((player) => [player.seat, player]));
@@ -117,7 +127,7 @@ export function LobbyScreen({ state, status, send, onLeave, notify }: LobbyScree
                   key={player.id}
                   className={`seat-tile seat-tile--filled ${
                     player.id === state.selfId ? 'is-self' : ''
-                  } ${!player.connected ? 'is-offline' : ''}`}
+                  } ${!player.connected ? 'is-offline' : ''} ${player.team ? `is-team-${player.team}` : ''}`}
                 >
                   <span className="seat-number">座位 {seat + 1}</span>
                   <span className="seat-avatar">{initialOf(player.name)}</span>
@@ -125,8 +135,20 @@ export function LobbyScreen({ state, status, send, onLeave, notify }: LobbyScree
                     <strong>{player.name}</strong>
                     <span>
                       {player.id === state.selfId ? '你' : player.connected ? '已入席' : '暂时离线'}
+                      {player.team ? (
+                        <em className={`team-badge team-badge--${player.team}`}>{TEAM_LABELS[player.team]}</em>
+                      ) : null}
                     </span>
                   </div>
+                  <button
+                    type="button"
+                    className={`team-button ${player.team ? `team-button--${player.team}` : ''}`}
+                    onClick={() => setTeam(player.id, nextTeam[player.team ?? 'none'])}
+                    title="队伍标记：点击在 红队 → 蓝队 → 无 之间切换（纯展示）"
+                    aria-label={`切换${player.name}的队伍标记`}
+                  >
+                    {player.team ? TEAM_LABELS[player.team][0] : '队'}
+                  </button>
                   {player.isHost ? (
                     <span className="seat-host" title="房主">
                       <Icon name="crown" size={13} />

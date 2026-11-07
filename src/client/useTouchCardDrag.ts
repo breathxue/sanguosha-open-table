@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, type MutableRefObject } from 'react';
 import type { ZoneRef } from '../shared/types';
+import { zoneAtPoint } from './dnd';
 
 export interface TouchDragActive {
   cardId: string;
@@ -29,11 +30,12 @@ function zoneElementAt(x: number, y: number): HTMLElement | null {
   return element.closest<HTMLElement>('[data-drop-zone]');
 }
 
-function zoneFromElement(element: HTMLElement | null): ZoneRef | null {
+function zoneFromElement(element: HTMLElement | null, x?: number, y?: number): ZoneRef | null {
   const raw = element?.getAttribute('data-drop-zone');
-  if (!raw) return null;
+  if (!raw || !element) return null;
   try {
-    return JSON.parse(raw) as ZoneRef;
+    const zone = JSON.parse(raw) as ZoneRef;
+    return x === undefined || y === undefined ? zone : zoneAtPoint(zone, element, x, y);
   } catch {
     return null;
   }
@@ -183,7 +185,7 @@ export function useTouchCardDrag(options: TouchDragOptions): TouchDragApi {
       event.preventDefault();
       const touch = event.changedTouches[0];
       const targetElement = touch ? zoneElementAt(touch.clientX, touch.clientY) : null;
-      const to = zoneFromElement(targetElement);
+      const to = touch ? zoneFromElement(targetElement, touch.clientX, touch.clientY) : null;
       const activeCard = activeRef.current;
       clearHover();
       dragging = false;

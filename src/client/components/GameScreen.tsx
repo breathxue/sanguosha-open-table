@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type DragEvent } from 'react';
-import type { CardView, ClientMessage, TableState, ZoneRef } from '../../shared/types';
+import type { CardView, ClientMessage, TableState, Team, ZoneRef } from '../../shared/types';
+import { GENERAL_KEEP_COUNT } from '../../shared/types';
 import { cx } from '../utils';
 import { copyText, inviteUrl } from '../utils';
 import type { ConnectionStatus } from '../useRoomSocket';
@@ -15,11 +16,11 @@ import { writeDragPayload, type DragPayload } from '../dnd';
 import { useTouchCardDrag } from '../useTouchCardDrag';
 import { ConfirmDialog } from './ConfirmDialog';
 import { GeneralDetailModal } from './GeneralDetailModal';
-import { DiscardPile, DeckPile } from './Piles';
+import { GeneralPickModal } from './GeneralPickModal';
+import { DiscardPile, DeckPile, JudgmentZone } from './Piles';
 import { Icon } from './Icons';
 import { Modal } from './Modal';
-import { MoveDialog, type MoveSource } from './MoveDialog';
-import { PlayerBoard } from './PlayerBoard';
+import { SeatCard } from './SeatCard';
 import { PlayingCard } from './PlayingCard';
 import { SidePanel } from './SidePanel';
 import { TopBar } from './TopBar';
@@ -36,12 +37,11 @@ export function GameScreen({ state, status, send, onLeave, notify }: GameScreenP
   const self = state.players.find((player) => player.id === state.selfId);
   const others = state.players.filter((player) => player.id !== state.selfId);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(() => new Set());
-  const [moveSource, setMoveSource] = useState<MoveSource | null>(null);
   const [discardOpen, setDiscardOpen] = useState(false);
   const [confirmLeave, setConfirmLeave] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [generalInfo, setGeneralInfo] = useState<CardView | null>(null);
-  const [htmlDragActive, setHtmlDragActive] = useState(false);
+  const [pickClosed, setPickClosed] = useState(false);
   const dragIdsRef = useRef<string[]>([]);
   const tableScrollRef = useRef<HTMLDivElement>(null);
 
@@ -61,32 +61,16 @@ export function GameScreen({ state, status, send, onLeave, notify }: GameScreenP
   }, [state.code]);
 
   useEffect(() => {
-    const onDragStart = (event: globalThis.DragEvent) => {
-      const target = event.target;
-      if (
-        target instanceof Element &&
-        (target.closest('[data-card-id]') || target.closest('.deck-visual'))
-      ) {
-        setHtmlDragActive(true);
-      }
-    };
-    const onDragEnd = () => setHtmlDragActive(false);
-    document.addEventListener('dragstart', onDragStart);
-    document.addEventListener('dragend', onDragEnd);
-    document.addEventListener('drop', onDragEnd);
-    return () => {
-      document.removeEventListener('dragstart', onDragStart);
-      document.removeEventListener('dragend', onDragEnd);
-      document.removeEventListener('drop', onDragEnd);
-    };
-  }, []);
-
-  useEffect(() => {
     setSelectedIds((previous) => {
       const next = new Set([...previous].filter((id) => currentVisible.has(id)));
       return next.size === previous.size ? previous : next;
     });
   }, [currentVisible]);
+
+  const ownGeneralCount = self?.general.length ?? 0;
+  useEffect(() => {
+    if (ownGeneralCount <= GENERAL_KEEP_COUNT) setPickClosed(false);
+  }, [ownGeneralCount]);
 
   const dispatchAction = (action: Extract<ClientMessage, { type: 'action' }>['action']): boolean => {
     if (status !== 'online') {
@@ -112,7 +96,9 @@ export function GameScreen({ state, status, send, onLeave, notify }: GameScreenP
       notify('有牌已经不在牌桌上了，请刷新后重试', 'error');
       return false;
     }
-    if (locations.every((item) => sameZone(item.zone, to))) {
+    // 弃牌区是开放式的：带位置放回弃牌区就是挪位置，不算「已经在目标区域」。
+    const repositionInDiscard = to.kind === 'discard' && Boolean(to.position);
+    if (!repositionInDiscard && locations.every((item) => sameZone(item.zone, to))) {
       notify('这些牌已经在目标区域了', 'info');
       return false;
     }
@@ -167,12 +153,8 @@ export function GameScreen({ state, status, send, onLeave, notify }: GameScreenP
     }
 
     if (payload.kind === 'deck') {
-      if (
-        to.kind === 'deck' &&
-        to.deck === payload.deck &&
-        (to.placement ?? 'top') === 'top'
-      ) {
-        notify('这已经是牌堆顶了', 'info');
+      if (to.kind === 'deck' && to.deck === payload.deck) {
+        notify('这张牌本来就在这个牌堆里', 'info');
         return;
       }
       const ok = dispatchAction({ type: 'moveTop', deck: payload.deck, to });
@@ -191,31 +173,50 @@ export function GameScreen({ state, status, send, onLeave, notify }: GameScreenP
     dispatchAction({ type: 'adjustHp', playerId, delta });
   };
 
+  const setHp = (playerId: string, hp: number) => {
+    dispatchAction({ type: 'setHp', playerId, hp });
+  };
+
+  const setTeam = (playerId: string, team: Team | null) => {
+    dispatchAction({ type: 'setTeam', playerId, team });
+  };
+
   const drawFromDeck = (deck: 'general' | 'normal') => {
     dispatchAction({
       type: 'moveTop',
       deck,
-      to: { kind: 'player', playerId: self.id, zone: 'hand' },
+      to: { kind: 'player', playerId: self.id, zone: deck === 'general' ? 'general' : 'hand' },
     });
   };
 
-  const shuffleDeck = (deck: 'general' | 'normal') => {
-    dispatchAction({ type: 'shuffle', deck });
+  const revealGenerals = (cardIds: string[]) => {
+    const ok = dispatchAction({ type: 'reveal', cardIds });
+    if (ok) setSelectedIds(new Set());
   };
 
-  const chooseDestination = (to: ZoneRef) => {
-    if (!moveSource) return;
-    let ok = false;
-    if (moveSource.kind === 'deck') {
-      ok = dispatchAction({ type: 'moveTop', deck: moveSource.deck, to });
-    } else {
-      ok = sendMove(moveSource.cardIds, to);
+  const keepGenerals = (_keepIds: string[], returnIds: string[]) => {
+    if (returnIds.length === 0) {
+      setPickClosed(true);
+      return;
     }
-    if (ok) {
-      setMoveSource(null);
-      setSelectedIds(new Set());
-    }
+    const ok = sendMove(returnIds, { kind: 'deck', deck: 'general', placement: 'bottom' });
+    if (ok) setPickClosed(true);
   };
+
+  // 选中的牌全是自己武将区里还没展示的武将时，才提供「展示」。
+  const revealableIds = [...selectedIds].filter((id) => {
+    const location = locateCard(state, id);
+    return (
+      location &&
+      location.zone.kind === 'player' &&
+      location.zone.playerId === self.id &&
+      location.zone.zone === 'general' &&
+      location.card.category === 'general' &&
+      !location.card.revealed
+    );
+  });
+  const canReveal = selectedIds.size > 0 && revealableIds.length === selectedIds.size;
+  const showPick = !pickClosed && self.general.length > GENERAL_KEEP_COUNT;
 
   const copyInvite = async () => {
     const ok = await copyText(inviteUrl(state.code));
@@ -253,7 +254,7 @@ export function GameScreen({ state, status, send, onLeave, notify }: GameScreenP
         : '连接已恢复';
 
   return (
-    <div className={cx('game-screen', selectedIds.size > 0 && 'has-selection')}>
+    <div className="game-screen">
       <TopBar
         state={state}
         status={status}
@@ -275,16 +276,6 @@ export function GameScreen({ state, status, send, onLeave, notify }: GameScreenP
         <main className="table-stage">
           <div className="table-scroll" ref={tableScrollRef}>
           <section className="opponents-section" aria-label="其他玩家">
-            <div className="stage-section-head">
-              <div>
-                <span className="panel-kicker">TABLE</span>
-                <h2>牌桌上的其他人</h2>
-              </div>
-              <span className="stage-hint">
-                <Icon name="eye" size={13} />
-                他人手牌不可见
-              </span>
-            </div>
             {others.length === 0 ? (
               <div className="solo-notice">
                 <span className="solo-mark">+</span>
@@ -298,9 +289,9 @@ export function GameScreen({ state, status, send, onLeave, notify }: GameScreenP
                 </button>
               </div>
             ) : (
-              <div className={cx('opponents-grid', others.length === 1 && 'is-single')}>
+              <div className="seat-row">
                 {others.map((player) => (
-                  <PlayerBoard
+                  <SeatCard
                     key={player.id}
                     player={player}
                     isSelf={false}
@@ -308,7 +299,8 @@ export function GameScreen({ state, status, send, onLeave, notify }: GameScreenP
                     onCardClick={selectCard}
                     onCardDragStart={handleCardDragStart}
                     onCardInfo={setGeneralInfo}
-                    onAdjustHp={adjustHp}
+                    // 体力只能自己调：对手卡上不给加减按钮，服务端同样拦截。
+                    onSetTeam={setTeam}
                     onDrop={handleDrop}
                   />
                 ))}
@@ -330,15 +322,13 @@ export function GameScreen({ state, status, send, onLeave, notify }: GameScreenP
                 拖拽任意牌到任意区域
               </span>
             </div>
-            <div className="core-piles">
-              <DeckPile
-                deck="general"
-                count={state.deckCounts.general}
-                disabled={status !== 'online'}
-                dragActive={htmlDragActive || Boolean(touchDrag.active)}
-                onDraw={() => drawFromDeck('general')}
-                onMoveTop={() => setMoveSource({ kind: 'deck', deck: 'general' })}
-                onShuffle={() => shuffleDeck('general')}
+            {/* 开局已经给每人发过武将，牌局中不再需要武将牌堆；它仍在服务器上，选将放回的牌进那里。 */}
+            <div className="core-piles core-piles--three">
+              <JudgmentZone
+                cards={state.judgment}
+                selectedIds={selectedIds}
+                onCardClick={selectCard}
+                onCardDragStart={handleCardDragStart}
                 onDrop={handleDrop}
               />
               <DiscardPile
@@ -353,10 +343,7 @@ export function GameScreen({ state, status, send, onLeave, notify }: GameScreenP
                 deck="normal"
                 count={state.deckCounts.normal}
                 disabled={status !== 'online'}
-                dragActive={htmlDragActive || Boolean(touchDrag.active)}
                 onDraw={() => drawFromDeck('normal')}
-                onMoveTop={() => setMoveSource({ kind: 'deck', deck: 'normal' })}
-                onShuffle={() => shuffleDeck('normal')}
                 onDrop={handleDrop}
               />
             </div>
@@ -367,7 +354,7 @@ export function GameScreen({ state, status, send, onLeave, notify }: GameScreenP
               </span>
               <span>
                 <i className="legend-dot legend-dot--gold" />
-                牌堆顶未知
+                牌堆牌面未知
               </span>
               <span>
                 <i className="legend-dot legend-dot--green" />
@@ -383,20 +370,49 @@ export function GameScreen({ state, status, send, onLeave, notify }: GameScreenP
                 <i>YOUR SEAT</i>
                 你的座位
               </span>
-              <span>
-                <Icon name="hand" size={12} />
-                <span className="desktop-hint">手牌只有你能看见</span>
-                <span className="touch-hint">长按卡牌拖动 · 轻点多选</span>
-              </span>
+              {selectedIds.size > 0 ? (
+                <div className="rail-selection" role="region" aria-label="已选牌操作">
+                  <span className="rail-selection-count">{selectedCards.length}</span>
+                  <span className="rail-selection-text" title={selectedSummary}>
+                    {selectedSummary || '已选牌'}
+                    <small>
+                      {selectedCurrentZone ? `来自${zoneName(state, selectedCurrentZone)}` : '来自多个区域'}
+                    </small>
+                  </span>
+                  {canReveal ? (
+                    <button
+                      type="button"
+                      className="rail-button rail-button--accent"
+                      onClick={() => revealGenerals(revealableIds)}
+                      title="展示后所有人都能看到这张武将，不可收回"
+                    >
+                      <Icon name="eye" size={12} />
+                      展示
+                    </button>
+                  ) : null}
+                  <button type="button" className="rail-button" onClick={() => setSelectedIds(new Set())}>
+                    取消
+                  </button>
+                </div>
+              ) : (
+                <span>
+                  <Icon name="hand" size={12} />
+                  <span className="desktop-hint">手牌只有你能看见 · 武将默认只对自己展示</span>
+                  <span className="touch-hint">长按卡牌拖动 · 轻点多选</span>
+                </span>
+              )}
             </div>
-            <PlayerBoard
+            <SeatCard
               player={self}
               isSelf
               selectedIds={selectedIds}
               onCardClick={selectCard}
               onCardDragStart={handleCardDragStart}
               onCardInfo={setGeneralInfo}
+              onReveal={(cardId) => revealGenerals([cardId])}
               onAdjustHp={adjustHp}
+              onSetHp={setHp}
+              onSetTeam={setTeam}
               onDrop={handleDrop}
             />
           </section>
@@ -419,45 +435,12 @@ export function GameScreen({ state, status, send, onLeave, notify }: GameScreenP
         />
       ) : null}
 
-      {selectedIds.size > 0 ? (
-        <div className="selection-dock" role="region" aria-label="已选牌操作">
-          <div className="selection-summary">
-            <span className="selection-count">{selectedCards.length}</span>
-            <div>
-              <strong>{selectedSummary || '已选牌'}</strong>
-              <span>
-                {selectedCurrentZone
-                  ? `来自${zoneName(state, selectedCurrentZone)}`
-                  : '来自多个区域'}
-              </span>
-            </div>
-          </div>
-          <div className="selection-actions">
-            <button
-              type="button"
-              className="primary-button selection-move"
-              onClick={() => setMoveSource({ kind: 'cards', cardIds: [...selectedIds] })}
-            >
-              <Icon name="move" size={16} />
-              移动至…
-            </button>
-            <button
-              type="button"
-              className="ghost-button"
-              onClick={() => setSelectedIds(new Set())}
-            >
-              取消
-            </button>
-          </div>
-        </div>
-      ) : null}
-
-      {moveSource ? (
-        <MoveDialog
-          state={state}
-          source={moveSource}
-          onClose={() => setMoveSource(null)}
-          onChoose={chooseDestination}
+      {showPick ? (
+        <GeneralPickModal
+          generals={self.general.filter((card) => card.category === 'general' && !card.hidden)}
+          onKeep={keepGenerals}
+          onInfo={setGeneralInfo}
+          onClose={() => setPickClosed(true)}
         />
       ) : null}
 
@@ -510,7 +493,35 @@ export function GameScreen({ state, status, send, onLeave, notify }: GameScreenP
         />
       ) : null}
 
-      {generalInfo ? <GeneralDetailModal card={generalInfo} onClose={() => setGeneralInfo(null)} /> : null}
+      {generalInfo
+        ? (() => {
+            // 放大看武将时，顺手提供「展示」；只对自己武将区里未展示的武将给操作。
+            const location = locateCard(state, generalInfo.id);
+            const inGeneralZone =
+              location && location.zone.kind === 'player' && location.zone.zone === 'general';
+            const own = inGeneralZone && location.zone.kind === 'player' && location.zone.playerId === self.id;
+            const liveCard = location?.card ?? generalInfo;
+            const actions = inGeneralZone ? (
+              <>
+                {own && !liveCard.revealed ? (
+                  <button
+                    type="button"
+                    className="rail-button rail-button--accent"
+                    onClick={() => {
+                      revealGenerals([liveCard.id]);
+                      setGeneralInfo(null);
+                    }}
+                    title="展示后所有人都能看到这张武将，不可收回"
+                  >
+                    <Icon name="eye" size={12} />
+                    展示给全桌
+                  </button>
+                ) : null}
+              </>
+            ) : null;
+            return <GeneralDetailModal card={liveCard} onClose={() => setGeneralInfo(null)} actions={actions} />;
+          })()
+        : null}
 
       {touchDrag.active && touchCard ? (
         <div

@@ -2,8 +2,11 @@ import { randomBytes, randomUUID } from 'node:crypto';
 import type { WebSocket } from 'ws';
 import {
   DECK_LABELS,
+  GENERAL_DRAW_COUNT,
+  GENERAL_KEEP_COUNT,
   MAX_PLAYERS,
   ROOM_CODE_LENGTH,
+  TEAM_LABELS,
   ZONE_LABELS,
   type CardView,
   type ClientMessage,
@@ -15,7 +18,9 @@ import {
   type ServerMessage,
   type Session,
   type TableAction,
+  type TablePoint,
   type TableState,
+  type Team,
   type ZoneRef,
 } from '../src/shared/types.js';
 import { createCards, shuffleInPlace, toCardView, type Card } from './cards.js';
@@ -30,6 +35,7 @@ export interface RoomPlayer {
   name: string;
   seat: number;
   hp: number;
+  team: Team | null;
   token: string;
   joinedAt: number;
 }
@@ -37,7 +43,6 @@ export interface RoomPlayer {
 export interface PlayerZones {
   hand: string[];
   equipment: string[];
-  judgment: string[];
   general: string[];
 }
 
@@ -52,6 +57,10 @@ export interface Room {
   cards: Map<string, Card>;
   decks: Record<DeckKind, string[]>;
   discard: string[];
+  /** 开放式弃牌区里每张牌的位置（牌中心相对弃牌区的比例）。 */
+  discardPositions: Map<string, TablePoint>;
+  /** 公共判定区（全桌共用）。 */
+  judgment: string[];
   playerZones: Map<string, PlayerZones>;
   logs: LogEntry[];
   chat: TableState['chat'];
@@ -75,7 +84,8 @@ export interface ActionResult {
 
 type CardLocation =
   | { kind: 'deck'; deck: DeckKind; placement?: 'top' | 'bottom' }
-  | { kind: 'discard' }
+  | { kind: 'discard'; position?: TablePoint }
+  | { kind: 'judgment' }
   | { kind: 'player'; playerId: string; zone: PlayerZone };
 
 function makeRoomCode(existing: Map<string, Room>): string {
@@ -109,16 +119,17 @@ function assertValidRoomCode(code: string): void {
 }
 
 function emptyZones(): PlayerZones {
-  return { hand: [], equipment: [], judgment: [], general: [] };
+  return { hand: [], equipment: [], general: [] };
 }
 
 function findCardLocation(room: Room, cardId: string): CardLocation | null {
   if (room.decks.normal.includes(cardId)) return { kind: 'deck', deck: 'normal' };
   if (room.decks.general.includes(cardId)) return { kind: 'deck', deck: 'general' };
   if (room.discard.includes(cardId)) return { kind: 'discard' };
+  if (room.judgment.includes(cardId)) return { kind: 'judgment' };
 
   for (const [playerId, zones] of room.playerZones) {
-    for (const zone of ['hand', 'equipment', 'judgment', 'general'] as PlayerZone[]) {
+    for (const zone of ['hand', 'equipment', 'general'] as PlayerZone[]) {
       if (zones[zone].includes(cardId)) {
         return { kind: 'player', playerId, zone };
       }
@@ -137,6 +148,12 @@ function removeCardFrom(room: Room, cardId: string, location: CardLocation): voi
   if (location.kind === 'discard') {
     const index = room.discard.indexOf(cardId);
     if (index >= 0) room.discard.splice(index, 1);
+    room.discardPositions.delete(cardId);
+    return;
+  }
+  if (location.kind === 'judgment') {
+    const index = room.judgment.indexOf(cardId);
+    if (index >= 0) room.judgment.splice(index, 1);
     return;
   }
   const zones = room.playerZones.get(location.playerId);
@@ -158,8 +175,18 @@ function putCardsAt(room: Room, cardIds: string[], to: ZoneRef): void {
     return;
   }
   if (to.kind === 'discard') {
-    target = room.discard;
-    for (let i = cardIds.length - 1; i >= 0; i -= 1) target.unshift(cardIds[i]);
+    // 开放式弃牌区：最新放进来的在数组头部（画在最上层）。
+    // 指定了位置就按位置放，多张牌依次错开一点；没指定就自动找个位置。
+    cardIds.forEach((cardId, index) => {
+      const base = to.position ?? autoDiscardPosition(room.discard.length + index);
+      room.discardPositions.set(cardId, clampPoint({ x: base.x + index * 0.035, y: base.y + index * 0.04 }));
+    });
+    for (let i = cardIds.length - 1; i >= 0; i -= 1) room.discard.unshift(cardIds[i]);
+    return;
+  }
+  if (to.kind === 'judgment') {
+    // 判定区按放入顺序排成一行，新牌放在末尾。
+    room.judgment.push(...cardIds);
     return;
   }
   const zones = room.playerZones.get(to.playerId);
@@ -168,12 +195,50 @@ function putCardsAt(room: Room, cardIds: string[], to: ZoneRef): void {
   target.push(...cardIds);
 }
 
+/** 弃牌区位置允许的范围：留出半张牌的边距，避免牌贴边被裁。 */
+const DISCARD_MARGIN_X = 0.08;
+const DISCARD_MARGIN_Y = 0.18;
+
+function clampPoint(point: TablePoint): TablePoint {
+  return {
+    x: Math.min(1 - DISCARD_MARGIN_X, Math.max(DISCARD_MARGIN_X, point.x)),
+    y: Math.min(1 - DISCARD_MARGIN_Y, Math.max(DISCARD_MARGIN_Y, point.y)),
+  };
+}
+
+/** 没指定位置时（弹窗移动、离桌清牌等）按序号在弃牌区里错落铺开。 */
+function autoDiscardPosition(index: number): TablePoint {
+  const columns = 6;
+  const col = index % columns;
+  const row = Math.floor(index / columns) % 3;
+  return clampPoint({
+    x: 0.14 + col * 0.145 + (row % 2) * 0.05,
+    y: 0.3 + row * 0.22,
+  });
+}
+
+function isValidPoint(value: unknown): value is TablePoint {
+  if (!value || typeof value !== 'object') return false;
+  const point = value as Record<string, unknown>;
+  return (
+    typeof point.x === 'number' &&
+    typeof point.y === 'number' &&
+    Number.isFinite(point.x) &&
+    Number.isFinite(point.y) &&
+    point.x >= 0 &&
+    point.x <= 1 &&
+    point.y >= 0 &&
+    point.y <= 1
+  );
+}
+
 function sameZone(a: CardLocation, b: ZoneRef): boolean {
   if (a.kind !== b.kind) return false;
   if (a.kind === 'deck' && b.kind === 'deck') {
     return a.deck === b.deck && (a.placement ?? 'top') === (b.placement ?? 'top');
   }
   if (a.kind === 'discard' && b.kind === 'discard') return true;
+  if (a.kind === 'judgment' && b.kind === 'judgment') return true;
   if (a.kind === 'player' && b.kind === 'player') {
     return a.playerId === b.playerId && a.zone === b.zone;
   }
@@ -189,15 +254,13 @@ function isValidZoneRef(room: Room, value: unknown): value is ZoneRef {
       (zone.placement === undefined || zone.placement === 'top' || zone.placement === 'bottom')
     );
   }
-  if (zone.kind === 'discard') return true;
+  if (zone.kind === 'discard') return zone.position === undefined || isValidPoint(zone.position);
+  if (zone.kind === 'judgment') return true;
   if (zone.kind === 'player') {
     return (
       typeof zone.playerId === 'string' &&
       room.players.some((player) => player.id === zone.playerId) &&
-      (zone.zone === 'hand' ||
-        zone.zone === 'equipment' ||
-        zone.zone === 'judgment' ||
-        zone.zone === 'general')
+      (zone.zone === 'hand' || zone.zone === 'equipment' || zone.zone === 'general')
     );
   }
   return false;
@@ -206,25 +269,73 @@ function isValidZoneRef(room: Room, value: unknown): value is ZoneRef {
 function describeLocation(room: Room, viewerId: string, location: CardLocation): string {
   if (location.kind === 'deck') return DECK_LABELS[location.deck];
   if (location.kind === 'discard') return '弃牌区';
+  if (location.kind === 'judgment') return '判定区';
   const player = room.players.find((item) => item.id === location.playerId);
   if (!player) return ZONE_LABELS[location.zone];
   return `${player.id === viewerId ? '自己的' : `${player.name}的`}${ZONE_LABELS[location.zone]}`;
 }
 
 function describeDestination(room: Room, viewerId: string, to: ZoneRef): string {
-  if (to.kind === 'deck') return `${DECK_LABELS[to.deck]}${(to.placement ?? 'top') === 'bottom' ? '底' : '顶'}`;
+  if (to.kind === 'deck') return DECK_LABELS[to.deck];
   if (to.kind === 'discard') return '弃牌区';
+  if (to.kind === 'judgment') return '判定区';
   const player = room.players.find((item) => item.id === to.playerId);
   if (!player) return ZONE_LABELS[to.zone];
   return `${player.id === viewerId ? '自己的' : `${player.name}的`}${ZONE_LABELS[to.zone]}`;
 }
 
-function isHiddenLocation(location: CardLocation): boolean {
-  return location.kind === 'deck' || (location.kind === 'player' && location.zone === 'hand');
+/** 牌堆、手牌，以及武将区里尚未展示的武将，都是只有持有者（或无人）可见的位置。 */
+function isHiddenLocation(room: Room, location: CardLocation, cardId: string): boolean {
+  if (location.kind === 'deck') return true;
+  if (location.kind !== 'player') return false;
+  if (location.zone === 'hand') return true;
+  if (location.zone === 'general') {
+    const card = room.cards.get(cardId);
+    return Boolean(card && card.category === 'general' && !card.revealed);
+  }
+  return false;
 }
 
-function isHiddenDestination(to: ZoneRef): boolean {
-  return to.kind === 'deck' || (to.kind === 'player' && to.zone === 'hand');
+function isHiddenDestination(room: Room, to: ZoneRef, cardIds: string[]): boolean {
+  if (to.kind === 'deck') return true;
+  if (to.kind !== 'player') return false;
+  if (to.zone === 'hand') return true;
+  if (to.zone === 'general') {
+    return cardIds.some((id) => {
+      const card = room.cards.get(id);
+      return card && card.category === 'general' && !card.revealed;
+    });
+  }
+  return false;
+}
+
+/**
+ * 武将牌和普通牌分区放置：武将牌放到手牌区时落到武将区，普通牌放到武将区时落到手牌区。
+ * 只对玩家区域生效；牌堆、弃牌区、判定区、装备区照原样。
+ */
+function resolveDestination(room: Room, cardId: string, to: ZoneRef): ZoneRef {
+  if (to.kind !== 'player') return to;
+  const card = room.cards.get(cardId);
+  if (!card) return to;
+  if (card.category === 'general' && to.zone === 'hand') return { ...to, zone: 'general' };
+  if (card.category !== 'general' && to.zone === 'general') return { ...to, zone: 'hand' };
+  return to;
+}
+
+/** 牌离开武将区后的可见性：回牌堆则重新变成未知；进公开区域则视为已展示。 */
+function applyVisibility(room: Room, cardIds: string[], to: ZoneRef): void {
+  for (const id of cardIds) {
+    const card = room.cards.get(id);
+    if (!card || card.category !== 'general') continue;
+    if (to.kind === 'deck') card.revealed = false;
+    else if (
+      to.kind === 'discard' ||
+      to.kind === 'judgment' ||
+      (to.kind === 'player' && to.zone !== 'general' && to.zone !== 'hand')
+    ) {
+      card.revealed = true;
+    }
+  }
 }
 
 export class RoomStore {
@@ -254,6 +365,8 @@ export class RoomStore {
       cards,
       decks,
       discard: [],
+      discardPositions: new Map(),
+      judgment: [],
       playerZones: new Map([[player.id, emptyZones()]]),
       logs: [],
       chat: [],
@@ -290,11 +403,16 @@ export class RoomStore {
     const player = this.newPlayer(name, seat);
     room.players.push(player);
     room.playerZones.set(player.id, emptyZones());
-    this.addLog(
-      room,
-      room.phase === 'playing' ? `${name} 加入了牌桌` : `${name} 加入了房间`,
-      'muted',
-    );
+    if (room.phase === 'playing') {
+      const dealt = this.dealGenerals(room, player.id);
+      this.addLog(
+        room,
+        dealt > 0 ? `${name} 加入了牌桌，摸了 ${dealt} 张武将牌` : `${name} 加入了牌桌`,
+        'muted',
+      );
+    } else {
+      this.addLog(room, `${name} 加入了房间`, 'muted');
+    }
     this.touch(room);
     return { room, player, session: this.sessionFor(room, player), created: false };
   }
@@ -315,16 +433,92 @@ export class RoomStore {
     if (room.phase === 'playing') return { ok: false, error: '牌局已经开始了' };
     room.phase = 'playing';
     this.addLog(room, `${player.name} 开始了牌局 · 规则由你们决定`, 'accent');
+    for (const item of this.sortedPlayers(room)) this.dealGenerals(room, item.id);
+    this.addLog(
+      room,
+      `每人从武将牌堆摸了 ${GENERAL_DRAW_COUNT} 张武将牌，各自保留 ${GENERAL_KEEP_COUNT} 张，其余放回武将牌堆底`,
+      'accent',
+    );
     this.touch(room);
     return { ok: true };
+  }
+
+  /** 从武将牌堆顶给玩家发武将到武将区（未展示）。返回实际发出的张数。 */
+  private dealGenerals(room: Room, playerId: string): number {
+    const zones = room.playerZones.get(playerId);
+    if (!zones) return 0;
+    let dealt = 0;
+    while (dealt < GENERAL_DRAW_COUNT && room.decks.general.length > 0) {
+      const cardId = room.decks.general.shift()!;
+      const card = room.cards.get(cardId);
+      if (card) card.revealed = false;
+      zones.general.push(cardId);
+      dealt += 1;
+    }
+    return dealt;
   }
 
   performAction(room: Room, playerId: string, action: TableAction): ActionResult {
     const player = room.players.find((item) => item.id === playerId);
     if (!player) return { ok: false, error: '你已不在牌桌中' };
-    if (room.phase !== 'playing') return { ok: false, error: '牌局还没有开始' };
     if (!action || typeof action !== 'object' || typeof action.type !== 'string') {
       return { ok: false, error: '无法识别的操作' };
+    }
+
+    // 队伍标记在大厅里也可以设置，所以放在「牌局是否开始」的检查之前。
+    if (action.type === 'setTeam') {
+      if (typeof action.playerId !== 'string') {
+        return { ok: false, error: '无法识别要标记的玩家' };
+      }
+      const target = room.players.find((item) => item.id === action.playerId);
+      if (!target) return { ok: false, error: '目标玩家已经不在牌桌上了' };
+      const team = action.team;
+      if (team !== null && team !== 'red' && team !== 'blue') {
+        return { ok: false, error: '无法识别的队伍' };
+      }
+      if (team === target.team) return { ok: true };
+      target.team = team;
+      const owner = target.id === player.id ? '自己' : target.name;
+      this.addLog(
+        room,
+        team ? `${player.name} 将${owner}标为${TEAM_LABELS[team]}` : `${player.name} 取消了${owner}的队伍标记`,
+        'normal',
+      );
+      this.touch(room);
+      return { ok: true };
+    }
+
+    if (room.phase !== 'playing') return { ok: false, error: '牌局还没有开始' };
+
+    if (action.type === 'reveal') {
+      if (!Array.isArray(action.cardIds) || action.cardIds.length === 0) {
+        return { ok: false, error: '请先选择要展示的武将' };
+      }
+      if (!action.cardIds.every((id) => typeof id === 'string')) {
+        return { ok: false, error: '牌的信息不正确' };
+      }
+      const zones = room.playerZones.get(player.id);
+      const cardIds = [...new Set(action.cardIds)];
+      const cards: Card[] = [];
+      for (const id of cardIds) {
+        if (!zones || !zones.general.includes(id)) {
+          return { ok: false, error: '只能展示自己武将区里的武将' };
+        }
+        const card = room.cards.get(id);
+        if (!card || card.category !== 'general') {
+          return { ok: false, error: '只有武将牌可以展示' };
+        }
+        if (!card.revealed) cards.push(card);
+      }
+      if (cards.length === 0) return { ok: true };
+      for (const card of cards) card.revealed = true;
+      this.addLog(
+        room,
+        `${player.name} 展示了武将 ${cards.map((card) => `【${card.name}】`).join('、')}`,
+        'accent',
+      );
+      this.touch(room);
+      return { ok: true };
     }
 
     if (action.type === 'adjustHp') {
@@ -333,6 +527,7 @@ export class RoomStore {
       }
       const target = room.players.find((item) => item.id === action.playerId);
       if (!target) return { ok: false, error: '目标玩家已经不在牌桌上了' };
+      if (target.id !== player.id) return { ok: false, error: '只能调整自己的体力' };
       if (
         typeof action.delta !== 'number' ||
         !Number.isFinite(action.delta) ||
@@ -346,6 +541,24 @@ export class RoomStore {
       target.hp = next;
       const owner = target.id === player.id ? '自己' : target.name;
       this.addLog(room, `${player.name} 将${owner}的体力调整为 ${next}`, 'normal');
+      this.touch(room);
+      return { ok: true };
+    }
+
+    if (action.type === 'setHp') {
+      if (typeof action.playerId !== 'string') {
+        return { ok: false, error: '无法识别要设置体力的玩家' };
+      }
+      const target = room.players.find((item) => item.id === action.playerId);
+      if (!target) return { ok: false, error: '目标玩家已经不在牌桌上了' };
+      if (target.id !== player.id) return { ok: false, error: '只能调整自己的体力' };
+      if (typeof action.hp !== 'number' || !Number.isInteger(action.hp) || action.hp < 0 || action.hp > 99) {
+        return { ok: false, error: '体力值不正确' };
+      }
+      if (action.hp === target.hp) return { ok: true };
+      target.hp = action.hp;
+      const owner = target.id === player.id ? '自己' : target.name;
+      this.addLog(room, `${player.name} 将${owner}的体力设为 ${action.hp}`, 'normal');
       this.touch(room);
       return { ok: true };
     }
@@ -369,16 +582,19 @@ export class RoomStore {
       const cardId = deck[0];
       if (!cardId) return { ok: false, error: `${DECK_LABELS[action.deck]}已经空了` };
       deck.shift();
-      putCardsAt(room, [cardId], action.to);
+      const to = resolveDestination(room, cardId, action.to);
+      putCardsAt(room, [cardId], to);
+      applyVisibility(room, [cardId], to);
       const card = room.cards.get(cardId);
-      const toHand = action.to.kind === 'player' && action.to.zone === 'hand';
-      const toDeck = action.to.kind === 'deck';
-      const toOwnHand = toHand && action.to.kind === 'player' && action.to.playerId === player.id;
-      const dest = describeDestination(room, player.id, action.to);
+      const toHand = to.kind === 'player' && (to.zone === 'hand' || to.zone === 'general');
+      const toDeck = to.kind === 'deck';
+      const toOwnHand = toHand && to.kind === 'player' && to.playerId === player.id;
+      const unit = action.deck === 'general' ? '武将牌' : '牌';
+      const dest = describeDestination(room, player.id, to);
       if (toOwnHand) {
-        this.addLog(room, `${player.name} 从${DECK_LABELS[action.deck]}摸了 1 张牌`, 'normal');
+        this.addLog(room, `${player.name} 从${DECK_LABELS[action.deck]}摸了 1 张${unit}`, 'normal');
       } else if (toHand) {
-        this.addLog(room, `${player.name} 将${DECK_LABELS[action.deck]}顶的 1 张牌放入${dest}`, 'normal');
+        this.addLog(room, `${player.name} 将${DECK_LABELS[action.deck]}顶的 1 张${unit}放入${dest}`, 'normal');
       } else if (toDeck) {
         this.addLog(
           room,
@@ -417,17 +633,45 @@ export class RoomStore {
 
       for (const item of located) {
         const location = item.location!;
-        if (isHiddenLocation(location)) {
-          const ownHand =
+        if (isHiddenLocation(room, location, item.cardId)) {
+          const ownPrivate =
             location.kind === 'player' &&
             location.playerId === player.id &&
-            location.zone === 'hand';
-          if (!ownHand) return { ok: false, error: '不能移动尚未公开的牌' };
+            (location.zone === 'hand' || location.zone === 'general');
+          if (!ownPrivate) return { ok: false, error: '不能移动尚未公开的牌' };
         }
       }
 
-      if (located.every((item) => sameZone(item.location!, action.to))) {
-        return { ok: false, error: '这些牌已经在目标区域了' };
+      // 武将牌 / 普通牌分区：按每张牌各自落到的区域分组。
+      const targets = new Map<string, { to: ZoneRef; ids: string[] }>();
+      for (const item of located) {
+        const to = resolveDestination(room, item.cardId, action.to);
+        const key = JSON.stringify(to);
+        const group = targets.get(key) ?? { to, ids: [] };
+        group.ids.push(item.cardId);
+        targets.set(key, group);
+      }
+      const resolvedFor = (cardId: string): ZoneRef => resolveDestination(room, cardId, action.to);
+
+      // 弃牌区内挪位置：牌已经在弃牌区、目标也是弃牌区且带位置，只改位置并提到最上层，不写记录。
+      if (
+        action.to.kind === 'discard' &&
+        action.to.position &&
+        located.every((item) => item.location!.kind === 'discard')
+      ) {
+        const position = action.to.position;
+        for (const item of located) removeCardFrom(room, item.cardId, item.location!);
+        putCardsAt(room, cardIds, { kind: 'discard', position });
+        this.touch(room);
+        return { ok: true };
+      }
+
+      if (located.every((item) => sameZone(item.location!, resolvedFor(item.cardId)))) {
+        const redirected = located.some((item) => !sameZone(resolvedFor(item.cardId), action.to));
+        return {
+          ok: false,
+          error: redirected ? '武将牌放武将区、普通牌放手牌区，这些牌已经在各自的区域了' : '这些牌已经在目标区域了',
+        };
       }
 
       const fromDescriptions = [
@@ -435,18 +679,24 @@ export class RoomStore {
       ];
       const firstLocation = located[0].location!;
       const onlyOneZone = located.every((item) => sameZone(item.location!, firstLocation));
-      const hiddenSource = located.some((item) => isHiddenLocation(item.location!));
-      const hiddenDestination = isHiddenDestination(action.to);
+      const hiddenSource = located.some((item) => isHiddenLocation(room, item.location!, item.cardId));
+      const hiddenDestination = [...targets.values()].some((group) =>
+        isHiddenDestination(room, group.to, group.ids),
+      );
       const cardViews = cardIds
         .map((id) => room.cards.get(id))
         .filter((card): card is Card => Boolean(card));
+      const allGenerals = cardViews.length > 0 && cardViews.every((card) => card.category === 'general');
 
       for (const item of located) {
         removeCardFrom(room, item.cardId, item.location!);
       }
-      putCardsAt(room, cardIds, action.to);
+      for (const group of targets.values()) {
+        putCardsAt(room, group.ids, group.to);
+        applyVisibility(room, group.ids, group.to);
+      }
 
-      let phrase = `${cardIds.length} 张牌`;
+      let phrase = `${cardIds.length} 张${allGenerals ? '武将牌' : '牌'}`;
       if (!hiddenSource && !hiddenDestination && cardViews.length > 0) {
         if (cardViews.length === 1) {
           phrase = `【${cardViews[0].name}】`;
@@ -457,7 +707,8 @@ export class RoomStore {
         }
       }
       const fromText = onlyOneZone ? fromDescriptions[0] : `${fromDescriptions.join('、')}等区域`;
-      const dest = describeDestination(room, player.id, action.to);
+      const destinations = [...new Set([...targets.values()].map((group) => describeDestination(room, player.id, group.to)))];
+      const dest = destinations.join('和');
       this.addLog(room, `${player.name} 将 ${phrase} 从${fromText}移到${dest}`, 'normal');
       this.touch(room);
       return { ok: true };
@@ -495,11 +746,15 @@ export class RoomStore {
         const orphaned = [
           ...zones.hand,
           ...zones.equipment,
-          ...zones.judgment,
           ...zones.general,
         ];
         if (orphaned.length > 0) {
-          for (let i = orphaned.length - 1; i >= 0; i -= 1) room.discard.unshift(orphaned[i]);
+          for (const cardId of orphaned) {
+            const location = findCardLocation(room, cardId);
+            if (location) removeCardFrom(room, cardId, location);
+          }
+          putCardsAt(room, orphaned, { kind: 'discard' });
+          applyVisibility(room, orphaned, { kind: 'discard' });
         }
       }
       this.addLog(room, `${player.name} 离开了牌桌，其区域内的牌进入弃牌区`, 'muted');
@@ -589,12 +844,14 @@ export class RoomStore {
         seat: player.seat,
         connected: (room.sockets.get(player.id)?.size ?? 0) > 0,
         isHost: player.id === room.hostId,
-        handCount: zones.hand.length,
+        // 手牌数只算普通牌；武将牌单独放武将区，不计入。
+        handCount: zones.hand.filter((id) => room.cards.get(id)?.category !== 'general').length,
         hp: player.hp,
+        team: player.team,
         hand: isSelf ? zones.hand.map((id) => this.cardView(room, id)) : null,
         equipment: zones.equipment.map((id) => this.cardView(room, id)),
-        judgment: zones.judgment.map((id) => this.cardView(room, id)),
-        general: zones.general.map((id) => this.cardView(room, id)),
+        // 武将区：未展示的武将对其他人只下发牌背（有 id、没有牌面信息），张数可见。
+        general: zones.general.map((id) => this.generalView(room, id, isSelf)),
       };
     });
 
@@ -609,7 +866,11 @@ export class RoomStore {
         general: room.decks.general.length,
         normal: room.decks.normal.length,
       },
-      discard: room.discard.map((id) => this.cardView(room, id)),
+      discard: room.discard.map((id) => ({
+        ...this.cardView(room, id),
+        position: room.discardPositions.get(id) ?? autoDiscardPosition(0),
+      })),
+      judgment: room.judgment.map((id) => this.cardView(room, id)),
       logs: room.logs.map((entry) => ({ ...entry })),
       chat: room.chat.map((entry) => ({ ...entry })),
       createdAt: room.createdAt,
@@ -624,6 +885,15 @@ export class RoomStore {
       playerCount: room.players.length,
       maxPlayers: MAX_PLAYERS,
     };
+  }
+
+  /** 武将区的牌：未展示的武将对其他人只给牌背。 */
+  private generalView(room: Room, cardId: string, isSelf: boolean): CardView {
+    const card = room.cards.get(cardId);
+    if (card && card.category === 'general' && !card.revealed && !isSelf) {
+      return { id: cardId, deck: 'general', name: '武将牌', category: 'general', hidden: true };
+    }
+    return this.cardView(room, cardId);
   }
 
   private cardView(room: Room, cardId: string): CardView {
@@ -643,6 +913,7 @@ export class RoomStore {
       name,
       seat,
       hp: 4,
+      team: null,
       token: randomBytes(24).toString('base64url'),
       joinedAt: Date.now(),
     };

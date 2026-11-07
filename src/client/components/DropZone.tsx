@@ -1,7 +1,7 @@
 import { useState, type DragEvent, type ReactNode } from 'react';
 import type { ZoneRef } from '../../shared/types';
 import { cx } from '../utils';
-import { hasDragPayload, readDragPayload, type DragPayload } from '../dnd';
+import { hasDragPayload, readDragPayload, zoneAtPoint, type DragPayload } from '../dnd';
 
 interface DropZoneProps {
   zone: ZoneRef;
@@ -44,7 +44,7 @@ export function DropZone({ zone, onDrop, children, className, disabled = false }
         event.stopPropagation();
         setIsOver(false);
         const payload = readDragPayload(event);
-        if (payload) onDrop(payload, zone);
+        if (payload) onDrop(payload, zoneAtPoint(zone, event.currentTarget, event.clientX, event.clientY));
       }}
     >
       {children}
